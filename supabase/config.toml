@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.hierarchical-task-router]
 verify_jwt = false
+
+[functions.update-agent-prompt]
+verify_jwt = false
+
+[functions.rollback-agent-prompt]
+verify_jwt = false
+
+[functions.test-agent-prompt]
+verify_jwt = false

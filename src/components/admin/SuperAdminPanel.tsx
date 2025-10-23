@@ -1,64 +1,249 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Edit, Save, RotateCcw, Eye } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Shield, Edit, Save, RotateCcw, Eye, FlaskConical, History, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import Editor from "@monaco-editor/react";
+import ReactDiffViewer from "react-diff-viewer-continued";
+import { Textarea } from "@/components/ui/textarea";
 
-interface AgentPrompt {
-  agentId: string;
-  agentName: string;
+interface AgentConfig {
+  id: string;
+  agent_id: string;
+  name: string;
   role: string;
-  currentPrompt: string;
-  version: number;
-  lastUpdated: Date;
+  team: string;
+  level: string;
+  system_prompt: string;
+  updated_at: string;
 }
 
-const mockPrompts: AgentPrompt[] = [
-  {
-    agentId: "cmo",
-    agentName: "Ricardo Mendes",
-    role: "CMO",
-    currentPrompt: "Você é Ricardo Mendes, CMO experiente com 15 anos de experiência. Sua missão é coordenar toda a equipe de marketing e garantir o sucesso das campanhas...",
-    version: 3,
-    lastUpdated: new Date(),
-  },
-  {
-    agentId: "market-research",
-    agentName: "Ana Costa",
-    role: "Market Research",
-    currentPrompt: "Você é Ana Costa, especialista em pesquisa de mercado. Seu foco é coletar e analisar dados de mercado para informar decisões estratégicas...",
-    version: 2,
-    lastUpdated: new Date(Date.now() - 86400000),
-  },
-];
+interface PromptHistory {
+  id: string;
+  version: number;
+  system_prompt: string;
+  created_at: string;
+  changed_by: string | null;
+  change_reason: string | null;
+}
 
 const SuperAdminPanel = () => {
-  const [selectedAgent, setSelectedAgent] = useState<AgentPrompt | null>(null);
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<AgentConfig | null>(null);
   const [editedPrompt, setEditedPrompt] = useState("");
+  const [changeReason, setChangeReason] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showDiff, setShowDiff] = useState(false);
+  const [showTest, setShowTest] = useState(false);
+  const [promptHistory, setPromptHistory] = useState<PromptHistory[]>([]);
+  const [selectedHistoryVersion, setSelectedHistoryVersion] = useState<PromptHistory | null>(null);
+  const [testMessage, setTestMessage] = useState("");
+  const [testResponse, setTestResponse] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const { toast } = useToast();
 
-  const handleEdit = (agent: AgentPrompt) => {
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
+  const fetchAgents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('agent_configs')
+        .select('*')
+        .order('level', { ascending: true })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setAgents(data || []);
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os agentes",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const fetchPromptHistory = async (agentConfigId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('agent_prompt_history')
+        .select('*')
+        .eq('agent_config_id', agentConfigId)
+        .order('version', { ascending: false });
+
+      if (error) throw error;
+      setPromptHistory(data || []);
+    } catch (error) {
+      console.error('Error fetching prompt history:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar o histórico",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEdit = (agent: AgentConfig) => {
     setSelectedAgent(agent);
-    setEditedPrompt(agent.currentPrompt);
+    setEditedPrompt(agent.system_prompt);
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    toast({
-      title: "Prompt atualizado",
-      description: `Versão ${(selectedAgent?.version || 0) + 1} do prompt de ${selectedAgent?.agentName} salva com sucesso`,
-    });
-    setIsEditing(false);
-    setSelectedAgent(null);
+  const handleViewHistory = async (agent: AgentConfig) => {
+    setSelectedAgent(agent);
+    await fetchPromptHistory(agent.id);
+    setShowHistory(true);
   };
 
-  const handleCancel = () => {
-    setIsEditing(false);
-    setSelectedAgent(null);
-    setEditedPrompt("");
+  const handleSave = async () => {
+    if (!selectedAgent || !editedPrompt.trim()) {
+      toast({
+        title: "Erro",
+        description: "Prompt não pode estar vazio",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!changeReason.trim()) {
+      toast({
+        title: "Atenção",
+        description: "Por favor, informe o motivo da alteração",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('update-agent-prompt', {
+        body: {
+          agent_id: selectedAgent.agent_id,
+          new_prompt: editedPrompt,
+          reason: changeReason,
+          user_id: null // TODO: Add actual user ID when auth is implemented
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Prompt atualizado",
+        description: `Versão ${data.version} do prompt de ${selectedAgent.name} salva com sucesso`,
+      });
+
+      setIsEditing(false);
+      setSelectedAgent(null);
+      setEditedPrompt("");
+      setChangeReason("");
+      await fetchAgents();
+    } catch (error) {
+      console.error('Error updating prompt:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o prompt",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRollback = async (version: number) => {
+    if (!selectedAgent) return;
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('rollback-agent-prompt', {
+        body: {
+          agent_id: selectedAgent.agent_id,
+          version,
+          user_id: null
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Rollback realizado",
+        description: `Prompt restaurado para versão ${version}`,
+      });
+
+      setShowHistory(false);
+      await fetchAgents();
+    } catch (error) {
+      console.error('Error rolling back:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível fazer o rollback",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestPrompt = async () => {
+    if (!testMessage.trim()) {
+      toast({
+        title: "Erro",
+        description: "Digite uma mensagem de teste",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('test-agent-prompt', {
+        body: {
+          system_prompt: editedPrompt,
+          test_message: testMessage
+        }
+      });
+
+      if (error) throw error;
+
+      setTestResponse(data.ai_response);
+      toast({
+        title: "Teste concluído",
+        description: `${data.tokens_used} tokens utilizados`,
+      });
+    } catch (error) {
+      console.error('Error testing prompt:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível testar o prompt",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handleCompareVersion = (version: PromptHistory) => {
+    setSelectedHistoryVersion(version);
+    setShowDiff(true);
+  };
+
+  const getLevelBadgeColor = (level: string) => {
+    switch (level) {
+      case '1': return 'bg-primary text-white';
+      case '2': return 'bg-secondary text-white';
+      case '3': return 'bg-accent text-white';
+      default: return 'bg-muted';
+    }
   };
 
   return (
@@ -73,7 +258,7 @@ const SuperAdminPanel = () => {
             <h2 className="text-3xl font-bold text-gradient">SuperAdmin Panel</h2>
           </div>
           <p className="text-muted-foreground">
-            Governança total sobre os system prompts de todos os agentes
+            Governança total sobre os system prompts de todos os {agents.length} agentes
           </p>
         </div>
         
@@ -85,7 +270,7 @@ const SuperAdminPanel = () => {
       {/* Warning */}
       <Card className="glass-panel p-4 border-red-500/20 bg-red-500/5">
         <div className="flex items-start gap-3">
-          <Shield className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
           <div>
             <h4 className="font-semibold text-red-500 mb-1">Zona de Alta Autoridade</h4>
             <p className="text-sm text-muted-foreground">
@@ -97,122 +282,251 @@ const SuperAdminPanel = () => {
       </Card>
 
       {/* Agent Prompts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {mockPrompts.map((agent) => (
-          <Card key={agent.agentId} className="glass-panel p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-semibold">{agent.agentName}</h3>
-                <p className="text-sm text-muted-foreground">{agent.role}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+        {agents.map((agent) => (
+          <Card key={agent.id} className="glass-panel p-4 hover:border-primary/50 transition-colors">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex-1">
+                <h3 className="font-semibold">{agent.name}</h3>
+                <p className="text-xs text-muted-foreground">{agent.role}</p>
               </div>
-              <Badge variant="outline">v{agent.version}</Badge>
+              <Badge className={getLevelBadgeColor(agent.level)}>
+                Nível {agent.level}
+              </Badge>
             </div>
 
-            <div className="mb-4 p-3 rounded-lg bg-muted/50 border border-border/50">
-              <p className="text-sm line-clamp-3">{agent.currentPrompt}</p>
+            <div className="mb-3 p-2 rounded-lg bg-muted/50 border border-border/50 max-h-20 overflow-hidden">
+              <p className="text-xs line-clamp-3 font-mono">{agent.system_prompt}</p>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
-              <span>Última atualização: {agent.lastUpdated.toLocaleDateString()}</span>
+            <div className="text-xs text-muted-foreground mb-3">
+              Team: <span className="font-medium">{agent.team}</span>
             </div>
 
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-1"
+                className="flex-1 text-xs"
                 onClick={() => handleEdit(agent)}
               >
-                <Edit className="w-4 h-4 mr-2" />
-                Editar Prompt
+                <Edit className="w-3 h-3 mr-1" />
+                Editar
               </Button>
-              <Button variant="outline" size="sm">
-                <Eye className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm">
-                <RotateCcw className="w-4 h-4" />
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => handleViewHistory(agent)}
+              >
+                <History className="w-3 h-3" />
               </Button>
             </div>
           </Card>
         ))}
       </div>
 
-      {/* Edit Modal/Panel */}
-      {isEditing && selectedAgent && (
-        <Card className="glass-panel p-6 border-2 border-primary">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-xl font-semibold">
-                Editando: {selectedAgent.agentName}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Nova versão: v{selectedAgent.version + 1}
-              </p>
-            </div>
-          </div>
+      {/* Edit Dialog */}
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Editando: {selectedAgent?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Nível {selectedAgent?.level} • {selectedAgent?.role}
+            </DialogDescription>
+          </DialogHeader>
 
-          <Textarea
-            value={editedPrompt}
-            onChange={(e) => setEditedPrompt(e.target.value)}
-            className="min-h-[300px] mb-4 font-mono text-sm"
-            placeholder="System prompt do agente..."
-          />
+          <Tabs defaultValue="editor" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="editor">
+                <Edit className="w-4 h-4 mr-2" />
+                Editor
+              </TabsTrigger>
+              <TabsTrigger value="test">
+                <FlaskConical className="w-4 h-4 mr-2" />
+                Testar Prompt
+              </TabsTrigger>
+            </TabsList>
 
-          <div className="flex gap-3">
-            <Button
-              onClick={handleSave}
-              className="bg-gradient-to-br from-primary to-secondary hover:opacity-90"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Salvar Nova Versão
-            </Button>
-            <Button variant="outline" onClick={handleCancel}>
-              Cancelar
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Changelog */}
-      <Card className="glass-panel p-6">
-        <h3 className="text-xl font-semibold mb-4">Histórico de Alterações</h3>
-        <div className="space-y-3">
-          {[
-            {
-              agent: "Ricardo Mendes",
-              version: "v2 → v3",
-              reason: "Ajuste na personalidade para ser mais assertivo",
-              date: new Date(),
-              user: "Admin",
-            },
-            {
-              agent: "Ana Costa",
-              version: "v1 → v2",
-              reason: "Adição de contexto sobre análise competitiva",
-              date: new Date(Date.now() - 86400000),
-              user: "Admin",
-            },
-          ].map((log, i) => (
-            <div
-              key={i}
-              className="p-4 rounded-lg border border-border/50 bg-background/50"
-            >
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h4 className="font-medium">{log.agent}</h4>
-                  <p className="text-sm text-muted-foreground">{log.reason}</p>
+            <TabsContent value="editor" className="space-y-4">
+              <div>
+                <Label>System Prompt</Label>
+                <div className="border rounded-lg overflow-hidden mt-2">
+                  {typeof window !== 'undefined' && (
+                    <Editor
+                      height="400px"
+                      defaultLanguage="markdown"
+                      value={editedPrompt}
+                      onChange={(value) => setEditedPrompt(value || "")}
+                      theme="vs-dark"
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        lineNumbers: 'on',
+                        wordWrap: 'on',
+                        scrollBeyondLastLine: false
+                      }}
+                    />
+                  )}
+                  {typeof window === 'undefined' && (
+                    <Textarea
+                      value={editedPrompt}
+                      onChange={(e) => setEditedPrompt(e.target.value)}
+                      className="min-h-[400px] font-mono text-sm"
+                    />
+                  )}
                 </div>
-                <Badge variant="outline">{log.version}</Badge>
               </div>
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span>{log.date.toLocaleString()}</span>
-                <span>•</span>
-                <span>Por: {log.user}</span>
+
+              <div>
+                <Label htmlFor="reason">Motivo da alteração *</Label>
+                <Input
+                  id="reason"
+                  value={changeReason}
+                  onChange={(e) => setChangeReason(e.target.value)}
+                  placeholder="Ex: Ajuste para ser mais assertivo nas respostas"
+                  className="mt-2"
+                />
               </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleSave}
+                  disabled={isLoading}
+                  className="bg-gradient-to-br from-primary to-secondary hover:opacity-90"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {isLoading ? 'Salvando...' : 'Salvar Nova Versão'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditedPrompt("");
+                    setChangeReason("");
+                  }}
+                  disabled={isLoading}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="test" className="space-y-4">
+              <div>
+                <Label htmlFor="test-message">Mensagem de Teste</Label>
+                <Input
+                  id="test-message"
+                  value={testMessage}
+                  onChange={(e) => setTestMessage(e.target.value)}
+                  placeholder="Digite uma mensagem para testar o prompt..."
+                  className="mt-2"
+                />
+              </div>
+
+              <Button
+                onClick={handleTestPrompt}
+                disabled={isTesting}
+                className="w-full"
+              >
+                <FlaskConical className="w-4 h-4 mr-2" />
+                {isTesting ? 'Testando...' : 'Testar Prompt'}
+              </Button>
+
+              {testResponse && (
+                <div>
+                  <Label>Resposta da IA</Label>
+                  <div className="mt-2 p-4 rounded-lg bg-muted border">
+                    <p className="text-sm whitespace-pre-wrap">{testResponse}</p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Histórico: {selectedAgent?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Todas as versões do prompt deste agente
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            {promptHistory.map((version) => (
+              <Card key={version.id} className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <Badge variant="outline" className="mb-2">Versão {version.version}</Badge>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(version.created_at).toLocaleString('pt-BR')}
+                    </p>
+                    {version.change_reason && (
+                      <p className="text-sm mt-1">
+                        <span className="font-medium">Motivo:</span> {version.change_reason}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCompareVersion(version)}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Comparar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRollback(version.version)}
+                      disabled={isLoading}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-1" />
+                      Restaurar
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-muted/50 border max-h-32 overflow-y-auto">
+                  <p className="text-xs font-mono">{version.system_prompt}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diff Dialog */}
+      <Dialog open={showDiff} onOpenChange={setShowDiff}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Comparação de Versões</DialogTitle>
+            <DialogDescription>
+              Atual vs Versão {selectedHistoryVersion?.version}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedAgent && selectedHistoryVersion && (
+            <div className="border rounded-lg overflow-hidden">
+              <ReactDiffViewer
+                oldValue={selectedHistoryVersion.system_prompt}
+                newValue={selectedAgent.system_prompt}
+                splitView={true}
+                leftTitle={`Versão ${selectedHistoryVersion.version}`}
+                rightTitle="Versão Atual"
+                showDiffOnly={false}
+              />
             </div>
-          ))}
-        </div>
-      </Card>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
