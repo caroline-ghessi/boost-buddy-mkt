@@ -109,9 +109,7 @@ export default function StepFour({ data, updateData }: StepFourProps) {
           <p className="text-sm text-muted-foreground mb-4">
             Envie documentos com diretrizes da marca para a base de conhecimento
           </p>
-          <RAGUploadWidget
-            onUploadComplete={() => toast.success("Guidelines atualizadas!")}
-          />
+          <RAGUploadWidget />
         </Card>
 
         {/* Visual References */}

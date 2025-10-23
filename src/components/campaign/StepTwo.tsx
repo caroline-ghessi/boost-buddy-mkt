@@ -203,7 +203,7 @@ export default function StepTwo({ data, updateData }: StepTwoProps) {
         <p className="text-sm text-muted-foreground mb-4">
           Envie documentos com personas detalhadas para a base de conhecimento
         </p>
-        <RAGUploadWidget onUploadComplete={() => toast.success("Persona adicionada!")} />
+        <RAGUploadWidget />
       </Card>
     </Card>
   );

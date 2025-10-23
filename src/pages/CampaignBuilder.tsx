@@ -109,20 +109,21 @@ export default function CampaignBuilder() {
 
   const saveDraft = async () => {
     try {
-      const { data, error } = await supabase.from("campaigns").insert({
+      const { data, error } = await supabase.from("campaigns").insert([{
+        user_id: (await supabase.auth.getUser()).data.user?.id || "",
+        name: campaignData.name || "Rascunho sem nome",
         budget_total: campaignData.budget.total,
         channels: campaignData.channels,
         objectives: campaignData.objectives,
         target_audience: campaignData.targetAudience,
         metadata: {
-          name: campaignData.name || "Rascunho sem nome",
           creativeBrief: campaignData.creativeBrief,
           budgetDistribution: campaignData.budget.distribution,
           timeline: campaignData.timeline,
           kpis: campaignData.kpis,
         },
         status: "draft",
-      }).select().single();
+      }]).select().single();
 
       if (error) throw error;
 
