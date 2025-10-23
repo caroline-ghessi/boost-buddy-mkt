@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.ingest-documents]
 verify_jwt = false
+
+[functions.agent-communication]
+verify_jwt = false
+
+[functions.hierarchical-task-router]
+verify_jwt = false

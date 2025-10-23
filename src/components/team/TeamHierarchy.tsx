@@ -1,11 +1,126 @@
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { buddyAgents, getAgentsByLevel, getAgentsByTeam } from "@/lib/buddyAgents";
+import { Badge } from "@/components/ui/badge";
+import { getAgentsByLevel, getAgentsByTeam, BuddyAgent } from "@/lib/buddyAgents";
 import { BuddyAgentCard } from "@/components/buddy/BuddyAgentCard";
+import { supabase } from "@/integrations/supabase/client";
+
+interface AgentStatus {
+  agent_id: string;
+  status: 'available' | 'busy' | 'offline';
+  pending_tasks: number;
+  active_tasks: number;
+}
 
 const TeamHierarchy = () => {
   const level1 = getAgentsByLevel(1);
   const level2 = getAgentsByLevel(2);
   const level3 = getAgentsByLevel(3);
+  
+  const [agentStatuses, setAgentStatuses] = useState<Record<string, AgentStatus>>({});
+
+  useEffect(() => {
+    fetchAgentStatuses();
+
+    // Subscribe to real-time task updates
+    const channel = supabase
+      .channel('team-hierarchy-tasks')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_tasks'
+        },
+        () => {
+          fetchAgentStatuses();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchAgentStatuses = async () => {
+    try {
+      const { data: tasks } = await supabase
+        .from('agent_tasks')
+        .select('agent_id, status');
+
+      if (!tasks) return;
+
+      const statusMap: Record<string, AgentStatus> = {};
+
+      tasks.forEach(task => {
+        if (!statusMap[task.agent_id]) {
+          statusMap[task.agent_id] = {
+            agent_id: task.agent_id,
+            status: 'available',
+            pending_tasks: 0,
+            active_tasks: 0,
+          };
+        }
+
+        if (task.status === 'pending') {
+          statusMap[task.agent_id].pending_tasks++;
+        } else if (task.status === 'in_progress') {
+          statusMap[task.agent_id].active_tasks++;
+          statusMap[task.agent_id].status = 'busy';
+        }
+      });
+
+      setAgentStatuses(statusMap);
+    } catch (error) {
+      console.error('Error fetching agent statuses:', error);
+    }
+  };
+
+  const getAgentStatus = (agentId: string) => {
+    return agentStatuses[agentId] || {
+      agent_id: agentId,
+      status: 'available',
+      pending_tasks: 0,
+      active_tasks: 0,
+    };
+  };
+
+  const getStatusBadge = (status: 'available' | 'busy' | 'offline') => {
+    const colors = {
+      available: 'bg-green-500/10 text-green-600',
+      busy: 'bg-yellow-500/10 text-yellow-600',
+      offline: 'bg-gray-500/10 text-gray-600',
+    };
+    const labels = {
+      available: 'Disponível',
+      busy: 'Ocupado',
+      offline: 'Offline',
+    };
+    return <Badge className={colors[status]}>{labels[status]}</Badge>;
+  };
+
+  const renderAgentWithStatus = (agent: BuddyAgent) => {
+    const status = getAgentStatus(agent.id);
+    return (
+      <div key={agent.id} className="relative">
+        <BuddyAgentCard agent={agent} />
+        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+          {getStatusBadge(status.status)}
+          {status.pending_tasks > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {status.pending_tasks} pendente{status.pending_tasks > 1 ? 's' : ''}
+            </Badge>
+          )}
+          {status.active_tasks > 0 && (
+            <Badge className="bg-blue-500/10 text-blue-600 text-xs">
+              {status.active_tasks} em andamento
+            </Badge>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // Group level 2 by team
   const intelligenceTeam = getAgentsByTeam("Intelligence");
@@ -70,8 +185,11 @@ const TeamHierarchy = () => {
               {level1.map((agent) => (
                 <Card
                   key={agent.id}
-                  className="bg-gradient-to-br from-primary to-secondary text-white p-8 shadow-xl border-0 card-paw"
+                  className="bg-gradient-to-br from-primary to-secondary text-white p-8 shadow-xl border-0 card-paw relative"
                 >
+                  <div className="absolute top-2 right-2">
+                    {getStatusBadge(getAgentStatus(agent.id).status)}
+                  </div>
                   <div className="text-center">
                     <div className="text-6xl mb-4 animate-bounce-in">{agent.emoji}</div>
                     <h4 className="text-2xl font-bold mb-2">{agent.name}</h4>
@@ -111,9 +229,7 @@ const TeamHierarchy = () => {
                 Intelligence Team
               </h4>
               <div className="space-y-3">
-                {intelligenceTeam.map((agent) => (
-                  <BuddyAgentCard key={agent.id} agent={agent} />
-                ))}
+                {intelligenceTeam.map((agent) => renderAgentWithStatus(agent))}
               </div>
             </Card>
 
@@ -124,9 +240,7 @@ const TeamHierarchy = () => {
                 Strategy Team
               </h4>
               <div className="space-y-3">
-                {strategyTeam.map((agent) => (
-                  <BuddyAgentCard key={agent.id} agent={agent} />
-                ))}
+                {strategyTeam.map((agent) => renderAgentWithStatus(agent))}
               </div>
             </Card>
           </div>
@@ -154,9 +268,7 @@ const TeamHierarchy = () => {
                 Content Team
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {contentTeam.map((agent) => (
-                  <BuddyAgentCard key={agent.id} agent={agent} />
-                ))}
+                {contentTeam.map((agent) => renderAgentWithStatus(agent))}
               </div>
             </Card>
 
@@ -167,9 +279,7 @@ const TeamHierarchy = () => {
                 Creative Team
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {creativeTeam.map((agent) => (
-                  <BuddyAgentCard key={agent.id} agent={agent} />
-                ))}
+                {creativeTeam.map((agent) => renderAgentWithStatus(agent))}
               </div>
             </Card>
 
@@ -180,9 +290,7 @@ const TeamHierarchy = () => {
                 Paid Media Team
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {paidMediaTeam.map((agent) => (
-                  <BuddyAgentCard key={agent.id} agent={agent} />
-                ))}
+                {paidMediaTeam.map((agent) => renderAgentWithStatus(agent))}
               </div>
             </Card>
 
@@ -193,9 +301,7 @@ const TeamHierarchy = () => {
                 Quality Team
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {qualityTeam.map((agent) => (
-                  <BuddyAgentCard key={agent.id} agent={agent} />
-                ))}
+                {qualityTeam.map((agent) => renderAgentWithStatus(agent))}
               </div>
             </Card>
           </div>

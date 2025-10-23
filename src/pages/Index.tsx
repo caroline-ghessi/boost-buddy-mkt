@@ -6,6 +6,7 @@ import CMOChat from "@/components/cmo/CMOChat";
 import TeamHierarchy from "@/components/team/TeamHierarchy";
 import PerformanceDashboard from "@/components/dashboard/PerformanceDashboard";
 import SuperAdminPanel from "@/components/admin/SuperAdminPanel";
+import { ActivityFeed } from "@/components/team/ActivityFeed";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("chat");
@@ -87,7 +88,8 @@ const Index = () => {
               <CMOChat />
             </TabsContent>
 
-            <TabsContent value="team" className="mt-6">
+            <TabsContent value="team" className="space-y-6">
+              <ActivityFeed />
               <TeamHierarchy />
             </TabsContent>
 
