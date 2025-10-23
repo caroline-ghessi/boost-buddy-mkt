@@ -31,7 +31,7 @@ interface RAGChunk {
   similarity?: number;
 }
 
-export default function RAGManager() {
+export default function KnowledgeBase() {
   const [documents, setDocuments] = useState<RAGDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -172,14 +172,7 @@ export default function RAGManager() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">📚 Base de Conhecimento</h1>
-        <p className="text-muted-foreground">
-          Gerencie documentos e realize buscas semânticas na sua knowledge base
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <Tabs defaultValue="documents" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="documents">Documentos</TabsTrigger>
