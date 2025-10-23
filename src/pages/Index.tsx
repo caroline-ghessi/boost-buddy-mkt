@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Users, BarChart3, Settings } from "lucide-react";
+import { MessageSquare, Users, BarChart3, Settings, BookOpen } from "lucide-react";
 import CMOChat from "@/components/cmo/CMOChat";
 import TeamHierarchy from "@/components/team/TeamHierarchy";
 import PerformanceDashboard from "@/components/dashboard/PerformanceDashboard";
@@ -8,6 +9,7 @@ import SuperAdminPanel from "@/components/admin/SuperAdminPanel";
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState("chat");
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background relative">
@@ -49,6 +51,14 @@ const Index = () => {
               >
                 <MessageSquare className="w-4 h-4" />
                 Chat com Ricardo
+              </TabsTrigger>
+              <TabsTrigger 
+                value="rag"
+                onClick={() => navigate('/rag')}
+                className="gap-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-secondary data-[state=active]:text-white rounded-full"
+              >
+                <BookOpen className="w-4 h-4" />
+                Base de Conhecimento
               </TabsTrigger>
               <TabsTrigger 
                 value="team" 

@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.query-rag]
 verify_jwt = false
+
+[functions.ingest-documents]
+verify_jwt = false

@@ -37,8 +37,8 @@ export function RAGUploadWidget() {
         return;
       }
 
-      // Insert document into database (without content for now)
-      const { error } = await supabase
+      // Insert document into database
+      const { data: docData, error } = await supabase
         .from('rag_documents')
         .insert({
           user_id: user.id,
@@ -50,13 +50,32 @@ export function RAGUploadWidget() {
             original_filename: file.name,
             uploaded_at: new Date().toISOString()
           }
+        })
+        .select()
+        .single();
+
+      if (error || !docData) {
+        console.error('Upload error:', error);
+        toast.error('Erro ao fazer upload do documento');
+        setIsUploading(false);
+        return;
+      }
+
+      // Trigger document processing
+      toast.success('Documento enviado! Processando...');
+      
+      try {
+        const { error: processError } = await supabase.functions.invoke('ingest-documents', {
+          body: { documentId: docData.id }
         });
 
-      if (error) throw error;
-
-      toast.success(`📚 ${file.name} adicionado à base de conhecimento!`, {
-        description: "O documento será processado em breve."
-      });
+        if (processError) {
+          console.error('Processing error:', processError);
+          toast.error('Erro ao processar documento');
+        }
+      } catch (err) {
+        console.error('Processing invocation error:', err);
+      }
 
     } catch (error) {
       console.error("Upload error:", error);
