@@ -3,61 +3,20 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sparkles, Rocket, BarChart3, Users, Target } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { BuddyButton } from "@/components/buddy/BuddyButton";
 import { BuddyLoadingSpinner } from "@/components/buddy/BuddyLoadingSpinner";
-import { getRandomMessage } from "@/lib/buddyMessages";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: Date;
-}
+import { RAGUploadWidget } from "@/components/rag/RAGUploadWidget";
+import { useCMOChat } from "@/hooks/useCMOChat";
 
 const CMOChat = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      role: "assistant",
-      content: "🐕 Oi! Eu sou o Ricardo Mendes, seu CMO e German Shepherd de confiança. Como seu melhor amigo no marketing, estou aqui para liderar toda a estratégia. Lidero um time de 16 especialistas incríveis - cada um com sua expertise única - e juntos vamos fazer sua empresa crescer! Como posso ajudar você hoje? 🎯",
-      timestamp: new Date(),
-    },
-  ]);
+  const { messages, isLoading, sendMessage } = useCMOChat();
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    const messageToSend = input;
     setInput("");
-    setIsLoading(true);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "🐕 " + getRandomMessage("success") + " Vou coordenar com The Pack para executar isso perfeitamente!",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, aiMessage]);
-      setIsLoading(false);
-      
-      toast({
-        title: "🐾 The Pack foi acionado!",
-        description: "Os especialistas estão trabalhando na sua solicitação",
-      });
-    }, 2000);
+    await sendMessage(messageToSend);
   };
 
   const quickActions = [
@@ -121,6 +80,13 @@ const CMOChat = () => {
           </div>
         </Card>
       </div>
+
+      {/* RAG Upload - Show only when no messages */}
+      {messages.length === 0 && (
+        <div className="lg:col-span-3">
+          <RAGUploadWidget />
+        </div>
+      )}
 
       {/* Chat Area */}
       <Card className="lg:col-span-2 border-2 border-primary/20 flex flex-col h-[600px] shadow-lg">
