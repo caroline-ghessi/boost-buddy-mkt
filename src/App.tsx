@@ -12,6 +12,8 @@ import Settings from "./pages/Settings";
 import CampaignBuilder from "./pages/CampaignBuilder";
 import CampaignProgress from "./pages/CampaignProgress";
 import CampaignReview from "./pages/CampaignReview";
+import CompetitiveIntelligence from "./pages/CompetitiveIntelligence";
+import CompetitorDetail from "./pages/CompetitorDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,10 @@ const App = () => (
           <Route path="/campaigns/new" element={<AppLayout><CampaignBuilder /></AppLayout>} />
           <Route path="/campaigns/:id/progress" element={<AppLayout><CampaignProgress /></AppLayout>} />
           <Route path="/campaigns/:id/review" element={<AppLayout><CampaignReview /></AppLayout>} />
+          
+          {/* Competitive Intelligence Routes - SPRINT 7 */}
+          <Route path="/competitive-intelligence" element={<AppLayout><CompetitiveIntelligence /></AppLayout>} />
+          <Route path="/competitive-intelligence/:competitorName" element={<AppLayout><CompetitorDetail /></AppLayout>} />
           
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

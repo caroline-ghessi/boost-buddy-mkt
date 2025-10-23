@@ -26,3 +26,12 @@ verify_jwt = false
 
 [functions.execute-campaign]
 verify_jwt = false
+
+[functions.scrape-competitor]
+verify_jwt = false
+
+[functions.analyze-competitor]
+verify_jwt = false
+
+[functions.schedule-competitor-monitoring]
+verify_jwt = false
