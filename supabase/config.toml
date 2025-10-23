@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.schedule-competitor-monitoring]
 verify_jwt = false
+
+[functions.sync-apify-results]
+verify_jwt = false

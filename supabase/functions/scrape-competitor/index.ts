@@ -16,6 +16,69 @@ interface ScrapeRequest {
   };
   scrapeType: "full" | "quick";
   userId: string;
+  mode?: "trigger" | "fetch"; // Modo de operação: trigger = novo scraping, fetch = buscar resultado existente
+}
+
+async function fetchLatestApifyRun({ actorId, username }: { actorId: string; username?: string }) {
+  const APIFY_API_TOKEN = Deno.env.get("APIFY_API_TOKEN");
+  
+  console.log(`📥 Fetching latest run for actor: ${actorId}`);
+  
+  // 1. Listar últimos runs do actor
+  const runsRes = await fetch(
+    `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_TOKEN}&status=SUCCEEDED&limit=10`
+  );
+  
+  const { data: { items: runs } } = await runsRes.json();
+  
+  if (!runs || runs.length === 0) {
+    throw new Error(`No successful runs found for actor ${actorId}`);
+  }
+  
+  // 2. Se username fornecido, buscar run específico para esse username
+  let targetRun = runs[0]; // Por padrão, pegar o mais recente
+  
+  if (username) {
+    // Verificar qual run é para o username específico
+    for (const run of runs) {
+      try {
+        // Buscar input do run para verificar se é o username correto
+        const inputRes = await fetch(
+          `https://api.apify.com/v2/actor-runs/${run.id}/input?token=${APIFY_API_TOKEN}`
+        );
+        const runInput = await inputRes.json();
+        
+        if (runInput.usernames && runInput.usernames.includes(username)) {
+          targetRun = run;
+          console.log(`🎯 Found matching run for @${username}`);
+          break;
+        }
+      } catch (error) {
+        console.log(`⚠️ Could not check run ${run.id}:`, (error as Error).message);
+        continue;
+      }
+    }
+  }
+  
+  console.log(`✅ Using run ID: ${targetRun.id}, finished at: ${targetRun.finishedAt}`);
+  
+  // 3. Buscar dados do dataset
+  const datasetId = targetRun.defaultDatasetId;
+  const resultsRes = await fetch(
+    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_TOKEN}`
+  );
+  
+  const results = await resultsRes.json();
+  console.log(`📊 Retrieved ${results.length} items from latest run`);
+  
+  return {
+    results,
+    runInfo: {
+      id: targetRun.id,
+      finishedAt: targetRun.finishedAt,
+      stats: targetRun.stats
+    }
+  };
 }
 
 async function runApifyActor({ actorId, input }: { actorId: string; input: any }) {
@@ -82,7 +145,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { competitorName, platforms, scrapeType, userId }: ScrapeRequest = await req.json();
+    const { competitorName, platforms, scrapeType, userId, mode = "trigger" }: ScrapeRequest = await req.json();
 
     console.log(`🐶 Thiago Costa iniciando scraping de ${competitorName}`);
     console.log(`📍 Plataformas:`, Object.keys(platforms));
@@ -119,23 +182,38 @@ serve(async (req) => {
         results.push({ platform: "website", itemsScraped: websiteData.length });
       } catch (error) {
         console.error("❌ Website scraping error:", error);
-        results.push({ platform: "website", error: error.message });
+        results.push({ platform: "website", error: (error as Error).message });
       }
     }
 
     // Instagram scraping
     if (platforms.instagram) {
       try {
-        console.log(`📷 Scraping Instagram: ${platforms.instagram}`);
-        const username = platforms.instagram.replace("@", "").replace("https://instagram.com/", "");
+        console.log(`📷 Processing Instagram: ${platforms.instagram}`);
+        const username = platforms.instagram.replace("@", "").replace("https://instagram.com/", "").split("/")[0];
         
-        const instaData = await runApifyActor({
-          actorId: "apify/instagram-profile-scraper",
-          input: {
-            usernames: [username],
-            resultsLimit: scrapeType === "full" ? 50 : 10,
-          },
-        });
+        let instaData;
+        let runInfo;
+        
+        // Escolher entre trigger novo scraping ou buscar resultado existente
+        if (mode === "fetch") {
+          console.log(`📥 Fetching latest data for @${username}...`);
+          const fetchResult = await fetchLatestApifyRun({
+            actorId: "apify/instagram-profile-scraper",
+            username: username
+          });
+          instaData = fetchResult.results;
+          runInfo = fetchResult.runInfo;
+        } else {
+          console.log(`🚀 Triggering new scraping for @${username}...`);
+          instaData = await runApifyActor({
+            actorId: "apify/instagram-profile-scraper",
+            input: {
+              usernames: [username],
+              resultsLimit: scrapeType === "full" ? 50 : 10,
+            },
+          });
+        }
 
         await supabase.from("competitor_data").insert({
           user_id: userId,
@@ -146,14 +224,21 @@ serve(async (req) => {
             username: username,
             profile: instaData[0] || {},
             posts: instaData.slice(0, 10),
+            apifyRunId: runInfo?.id,
+            scrapedAt: runInfo?.finishedAt || new Date().toISOString(),
           },
-          scraped_at: new Date().toISOString(),
+          scraped_at: runInfo?.finishedAt || new Date().toISOString(),
         });
 
-        results.push({ platform: "instagram", itemsScraped: instaData.length });
+        results.push({ 
+          platform: "instagram", 
+          itemsScraped: instaData.length,
+          mode: mode,
+          runId: runInfo?.id
+        });
       } catch (error) {
-        console.error("❌ Instagram scraping error:", error);
-        results.push({ platform: "instagram", error: error.message });
+        console.error("❌ Instagram processing error:", error);
+        results.push({ platform: "instagram", error: (error as Error).message });
       }
     }
 
@@ -184,7 +269,7 @@ serve(async (req) => {
         results.push({ platform: "facebook", itemsScraped: fbData.length });
       } catch (error) {
         console.error("❌ Facebook scraping error:", error);
-        results.push({ platform: "facebook", error: error.message });
+        results.push({ platform: "facebook", error: (error as Error).message });
       }
     }
 
@@ -214,7 +299,7 @@ serve(async (req) => {
         results.push({ platform: "linkedin", itemsScraped: linkedinData.length });
       } catch (error) {
         console.error("❌ LinkedIn scraping error:", error);
-        results.push({ platform: "linkedin", error: error.message });
+        results.push({ platform: "linkedin", error: (error as Error).message });
       }
     }
 
@@ -242,7 +327,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("❌ Erro no scraping:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

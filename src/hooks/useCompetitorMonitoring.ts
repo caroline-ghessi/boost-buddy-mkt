@@ -66,16 +66,48 @@ export function useCompetitorMonitoring() {
           platforms,
           scrapeType: "quick",
           userId,
+          mode: "trigger",
         },
       });
 
       if (error) throw error;
 
-      toast.success(`🔄 Atualização iniciada para ${competitorName}`);
+      toast.success(`🔄 Novo scraping iniciado para ${competitorName}`);
       return data;
     } catch (error) {
       console.error("Error triggering manual scrape:", error);
-      toast.error("Erro ao atualizar dados");
+      toast.error("Erro ao iniciar scraping");
+      throw error;
+    } finally {
+      setIsScrapingLoading(false);
+    }
+  };
+
+  const syncApifyResults = async (
+    competitorName: string,
+    platforms: Record<string, string>,
+    userId: string
+  ) => {
+    try {
+      setIsScrapingLoading(true);
+
+      const { data, error } = await supabase.functions.invoke("scrape-competitor", {
+        body: {
+          competitorName,
+          platforms,
+          scrapeType: "quick",
+          userId,
+          mode: "fetch",
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`🔄 Dados sincronizados do Apify para ${competitorName}`);
+      return data;
+    } catch (error) {
+      console.error("Error syncing Apify results:", error);
+      toast.error("Erro ao sincronizar com Apify");
       throw error;
     } finally {
       setIsScrapingLoading(false);
@@ -85,6 +117,7 @@ export function useCompetitorMonitoring() {
   return {
     startMonitoring,
     triggerManualScrape,
+    syncApifyResults,
     isScrapingLoading,
   };
 }

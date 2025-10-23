@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, RefreshCw, Pause } from "lucide-react";
+import { ArrowLeft, RefreshCw, Pause, Download } from "lucide-react";
 import { CompetitorOverview } from "@/components/intelligence/CompetitorOverview";
 import { ChangeTimeline } from "@/components/intelligence/ChangeTimeline";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +17,7 @@ export default function CompetitorDetail() {
   const [competitorData, setCompetitorData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { triggerManualScrape, isScrapingLoading } = useCompetitorMonitoring();
+  const { triggerManualScrape, syncApifyResults, isScrapingLoading } = useCompetitorMonitoring();
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -89,6 +89,19 @@ export default function CompetitorDetail() {
     await triggerManualScrape(competitorName, config.data?.platforms || {}, userId);
   };
 
+  const handleSyncApify = async () => {
+    if (!userId || !competitorName) return;
+
+    // Get platforms from config
+    const config = competitorData.find((d) => d.data_type === "monitoring_config");
+    if (!config) {
+      toast.error("Configuração do concorrente não encontrada");
+      return;
+    }
+
+    await syncApifyResults(competitorName, config.data?.platforms || {}, userId);
+  };
+
   const insights = competitorData.filter((d) => d.data_type === "ai_insights");
   const competitor = {
     name: competitorName,
@@ -122,15 +135,23 @@ export default function CompetitorDetail() {
         <div className="flex gap-2">
           <Button
             variant="outline"
+            onClick={handleSyncApify}
+            disabled={isScrapingLoading}
+          >
+            <Download className={`w-4 h-4 mr-2 ${isScrapingLoading ? "animate-spin" : ""}`} />
+            Sincronizar Apify
+          </Button>
+          <Button
+            variant="outline"
             onClick={handleManualScrape}
             disabled={isScrapingLoading}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isScrapingLoading ? "animate-spin" : ""}`} />
-            Atualizar Agora
+            Novo Scraping
           </Button>
           <Button variant="outline">
             <Pause className="w-4 h-4 mr-2" />
-            Pausar Monitoramento
+            Pausar
           </Button>
         </div>
       </div>
