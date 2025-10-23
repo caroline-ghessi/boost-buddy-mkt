@@ -9,6 +9,9 @@ import KnowledgeBase from "./pages/KnowledgeBase";
 import Team from "./pages/Team";
 import Performance from "./pages/Performance";
 import Settings from "./pages/Settings";
+import CampaignBuilder from "./pages/CampaignBuilder";
+import CampaignProgress from "./pages/CampaignProgress";
+import CampaignReview from "./pages/CampaignReview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +28,12 @@ const App = () => (
           <Route path="/team" element={<AppLayout><Team /></AppLayout>} />
           <Route path="/performance" element={<AppLayout><Performance /></AppLayout>} />
           <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
+          
+          {/* Campaign Routes - SPRINT 5 */}
+          <Route path="/campaigns/new" element={<AppLayout><CampaignBuilder /></AppLayout>} />
+          <Route path="/campaigns/:id/progress" element={<AppLayout><CampaignProgress /></AppLayout>} />
+          <Route path="/campaigns/:id/review" element={<AppLayout><CampaignReview /></AppLayout>} />
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

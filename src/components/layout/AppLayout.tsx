@@ -1,5 +1,6 @@
-import { Link, useLocation } from "react-router-dom";
-import { MessageSquare, Users, BarChart3, Settings, BookOpen } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { MessageSquare, Users, BarChart3, Settings, BookOpen, Rocket } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { path: "/", label: "Chat com Ricardo", icon: MessageSquare },
@@ -15,6 +16,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background relative">
@@ -36,7 +38,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </div>
               </div>
               
-              <div className="flex items-center gap-2 text-sm">
+              <div className="flex items-center gap-4">
+                <Button onClick={() => navigate("/campaigns/new")} className="bg-gradient-to-r from-primary to-secondary">
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Nova Campanha
+                </Button>
                 <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/30 rounded-full">
                   <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                   <span className="text-green-700 font-medium">The Pack is Ready!</span>

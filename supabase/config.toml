@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.test-agent-prompt]
 verify_jwt = false
+
+[functions.execute-campaign]
+verify_jwt = false
