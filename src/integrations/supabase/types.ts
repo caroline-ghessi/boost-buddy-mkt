@@ -552,6 +552,144 @@ export type Database = {
         }
         Relationships: []
       }
+      google_ads_metrics: {
+        Row: {
+          campaign_id: string
+          campaign_name: string
+          clicks: number
+          conversion_rate: number | null
+          conversions: number
+          cost: number
+          cost_per_conversion: number | null
+          cpc: number | null
+          created_at: string
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number
+          metadata: Json | null
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          campaign_name: string
+          clicks?: number
+          conversion_rate?: number | null
+          conversions?: number
+          cost?: number
+          cost_per_conversion?: number | null
+          cpc?: number | null
+          created_at?: string
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number
+          metadata?: Json | null
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          campaign_name?: string
+          clicks?: number
+          conversion_rate?: number | null
+          conversions?: number
+          cost?: number
+          cost_per_conversion?: number | null
+          cpc?: number | null
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number
+          metadata?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      google_analytics_metrics: {
+        Row: {
+          avg_session_duration: number | null
+          bounce_rate: number | null
+          conversion_rate: number | null
+          conversions: number
+          created_at: string
+          date: string
+          id: string
+          metadata: Json | null
+          new_users: number
+          pageviews: number
+          sessions: number
+          traffic_sources: Json | null
+          user_id: string
+          users: number
+        }
+        Insert: {
+          avg_session_duration?: number | null
+          bounce_rate?: number | null
+          conversion_rate?: number | null
+          conversions?: number
+          created_at?: string
+          date: string
+          id?: string
+          metadata?: Json | null
+          new_users?: number
+          pageviews?: number
+          sessions?: number
+          traffic_sources?: Json | null
+          user_id: string
+          users?: number
+        }
+        Update: {
+          avg_session_duration?: number | null
+          bounce_rate?: number | null
+          conversion_rate?: number | null
+          conversions?: number
+          created_at?: string
+          date?: string
+          id?: string
+          metadata?: Json | null
+          new_users?: number
+          pageviews?: number
+          sessions?: number
+          traffic_sources?: Json | null
+          user_id?: string
+          users?: number
+        }
+        Relationships: []
+      }
+      google_credentials: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string
+          id: string
+          refresh_token: string
+          scope: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          refresh_token: string
+          scope: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          refresh_token?: string
+          scope?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

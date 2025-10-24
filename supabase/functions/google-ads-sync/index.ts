@@ -1,0 +1,176 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getValidAccessToken } from "../google-refresh-token/index.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get user from auth header
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    const { startDate, endDate } = await req.json();
+    
+    // Default to last 30 days if not provided
+    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const end = endDate || new Date().toISOString().split('T')[0];
+
+    console.log(`Syncing Google Ads data for user ${user.id} from ${start} to ${end}`);
+
+    // Get valid access token
+    const accessToken = await getValidAccessToken(supabase, user.id);
+    const customerId = Deno.env.get('GOOGLE_ADS_CUSTOMER_ID');
+
+    // Build GAQL query
+    const query = `
+      SELECT 
+        campaign.id,
+        campaign.name,
+        segments.date,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.ctr,
+        metrics.cost_micros,
+        metrics.average_cpc,
+        metrics.conversions,
+        metrics.conversions_value
+      FROM campaign
+      WHERE segments.date BETWEEN '${start}' AND '${end}'
+      ORDER BY segments.date DESC
+    `;
+
+    // Call Google Ads API
+    const adsResponse = await fetch(
+      `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'developer-token': Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN') || '', // Optional
+        },
+        body: JSON.stringify({ query }),
+      }
+    );
+
+    if (!adsResponse.ok) {
+      const errorText = await adsResponse.text();
+      console.error('Google Ads API error:', errorText);
+      throw new Error(`Google Ads API failed: ${adsResponse.status}`);
+    }
+
+    const adsData = await adsResponse.json();
+    console.log('Google Ads data received, results:', adsData.length || 0);
+
+    // Process and insert metrics
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalCost = 0;
+    let totalConversions = 0;
+
+    for (const result of adsData) {
+      const campaign = result.campaign;
+      const segments = result.segments;
+      const metrics = result.metrics;
+
+      // Convert cost from micros to currency
+      const cost = parseFloat(metrics.costMicros) / 1_000_000;
+      const cpc = parseFloat(metrics.averageCpc) / 1_000_000;
+      const conversions = parseFloat(metrics.conversions);
+      const clicks = parseInt(metrics.clicks);
+      
+      const conversion_rate = clicks > 0 
+        ? parseFloat((conversions / clicks * 100).toFixed(2))
+        : 0;
+      
+      const cost_per_conversion = conversions > 0
+        ? parseFloat((cost / conversions).toFixed(2))
+        : 0;
+
+      await supabase
+        .from('google_ads_metrics')
+        .upsert({
+          user_id: user.id,
+          date: segments.date,
+          campaign_id: campaign.id.toString(),
+          campaign_name: campaign.name,
+          impressions: parseInt(metrics.impressions),
+          clicks,
+          ctr: parseFloat((parseFloat(metrics.ctr) * 100).toFixed(2)),
+          cost,
+          cpc,
+          conversions,
+          conversion_rate,
+          cost_per_conversion,
+          metadata: { 
+            conversions_value: parseFloat(metrics.conversionsValue || 0),
+            synced_at: new Date().toISOString() 
+          },
+        }, {
+          onConflict: 'user_id,campaign_id,date'
+        });
+
+      totalImpressions += parseInt(metrics.impressions);
+      totalClicks += clicks;
+      totalCost += cost;
+      totalConversions += conversions;
+    }
+
+    const avgCtr = totalImpressions > 0 
+      ? parseFloat((totalClicks / totalImpressions * 100).toFixed(2))
+      : 0;
+
+    console.log('Google Ads sync completed successfully');
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        period: { start, end },
+        totals: {
+          impressions: totalImpressions,
+          clicks: totalClicks,
+          cost: totalCost,
+          conversions: totalConversions,
+          ctr: avgCtr,
+        },
+        campaigns: adsData.length,
+      }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200 
+      }
+    );
+
+  } catch (error) {
+    console.error('Error in google-ads-sync:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500 
+      }
+    );
+  }
+});

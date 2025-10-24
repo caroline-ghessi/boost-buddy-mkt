@@ -1,5 +1,8 @@
 import { Card } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, DollarSign, Target, Users, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, TrendingDown, DollarSign, Target, Users, Zap, RefreshCw } from "lucide-react";
+import { useGoogleMetrics } from "@/hooks/useGoogleMetrics";
+import { useEffect } from "react";
 
 interface MetricCard {
   title: string;
@@ -8,37 +11,6 @@ interface MetricCard {
   icon: any;
   trend: "up" | "down";
 }
-
-const metrics: MetricCard[] = [
-  {
-    title: "Campanhas Ativas",
-    value: "12",
-    change: 8.2,
-    icon: Target,
-    trend: "up",
-  },
-  {
-    title: "ROI Médio",
-    value: "347%",
-    change: 12.5,
-    icon: DollarSign,
-    trend: "up",
-  },
-  {
-    title: "Alcance Total",
-    value: "2.4M",
-    change: -3.2,
-    icon: Users,
-    trend: "down",
-  },
-  {
-    title: "Taxa de Conversão",
-    value: "4.8%",
-    change: 15.3,
-    icon: Zap,
-    trend: "up",
-  },
-];
 
 const recentCampaigns = [
   {
@@ -68,14 +40,102 @@ const recentCampaigns = [
 ];
 
 const PerformanceDashboard = () => {
+  const { analytics, ads, isConnected, isLoading, connectGoogle, syncMetrics } = useGoogleMetrics();
+
+  // Check for OAuth callback success/error
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      window.history.replaceState({}, '', '/performance');
+      syncMetrics();
+    }
+  }, []);
+
+  // Calculate dynamic metrics from Google data
+  const metrics: MetricCard[] = isConnected && analytics && ads ? [
+    {
+      title: "Sessões (GA4)",
+      value: analytics.sessions.toLocaleString('pt-BR'),
+      change: 12.5,
+      icon: Users,
+      trend: "up",
+    },
+    {
+      title: "CTR Google Ads",
+      value: `${ads.ctr.toFixed(2)}%`,
+      change: 8.2,
+      icon: Target,
+      trend: "up",
+    },
+    {
+      title: "Custo Total (Ads)",
+      value: `R$ ${ads.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+      change: -5.3,
+      icon: DollarSign,
+      trend: "down",
+    },
+    {
+      title: "Conversões Totais",
+      value: (analytics.conversions + ads.conversions).toLocaleString('pt-BR'),
+      change: 15.3,
+      icon: Zap,
+      trend: "up",
+    },
+  ] : [
+    {
+      title: "Campanhas Ativas",
+      value: "12",
+      change: 8.2,
+      icon: Target,
+      trend: "up",
+    },
+    {
+      title: "ROI Médio",
+      value: "347%",
+      change: 12.5,
+      icon: DollarSign,
+      trend: "up",
+    },
+    {
+      title: "Alcance Total",
+      value: "2.4M",
+      change: -3.2,
+      icon: Users,
+      trend: "down",
+    },
+    {
+      title: "Taxa de Conversão",
+      value: "4.8%",
+      change: 15.3,
+      icon: Zap,
+      trend: "up",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold text-gradient mb-2">Performance Dashboard</h2>
-        <p className="text-muted-foreground">
-          Métricas em tempo real das campanhas executadas pelos agentes
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gradient mb-2">Performance Dashboard</h2>
+          <p className="text-muted-foreground">
+            {isConnected 
+              ? "Métricas em tempo real do Google Analytics e Google Ads"
+              : "Conecte sua conta Google para ver métricas reais"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {!isConnected ? (
+            <Button onClick={connectGoogle} size="lg">
+              🔗 Conectar Google
+            </Button>
+          ) : (
+            <Button onClick={syncMetrics} variant="outline" disabled={isLoading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Atualizar Métricas
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Metrics Grid */}

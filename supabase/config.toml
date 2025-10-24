@@ -1,5 +1,17 @@
 project_id = "uujalotsiwoeitcgnmzv"
 
+[functions.google-oauth-authorize]
+verify_jwt = true
+
+[functions.google-oauth-callback]
+verify_jwt = false
+
+[functions.google-analytics-sync]
+verify_jwt = true
+
+[functions.google-ads-sync]
+verify_jwt = true
+
 [functions.cmo-chat]
 verify_jwt = false
 
