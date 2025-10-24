@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 
+// Menu items for navigation
 const menuItems = [
   { path: "/", label: "Chat com Ricardo", icon: MessageSquare },
   { path: "/knowledge", label: "Base de Conhecimento", icon: BookOpen },
