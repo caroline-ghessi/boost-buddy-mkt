@@ -49,6 +49,11 @@ serve(async (req) => {
     // 3. Preparar contexto para Thiago
     const analysisPrompt = `Você é Thiago Costa, especialista em Inteligência Competitiva.
 
+Você receberá dados de um concorrente contendo:
+1. PERFIL do Instagram (bio, followers, etc)
+2. POSTS recentes (conteúdo, engajamento, hashtags)
+3. MÉTRICAS agregadas
+
 DADOS COLETADOS DO CONCORRENTE "${competitorName}":
 ${JSON.stringify(recentData?.slice(0, 5), null, 2)}
 
@@ -56,33 +61,72 @@ DADOS HISTÓRICOS (última semana):
 ${JSON.stringify(historicalData?.slice(0, 5), null, 2)}
 
 TAREFAS:
-1. Analise profundamente os dados coletados
+1. Analise profundamente PERFIL + POSTS
 2. Identifique:
-   - Estratégia de precificação (se disponível)
-   - Mensagem principal e posicionamento
-   - Features e diferenciais
-   - Canais de comunicação ativos
-   - Estilo visual e tom de voz
+   - Posicionamento (baseado na bio e perfil)
+   - Tamanho e crescimento da audiência
+   - Nível de autoridade (verificado, followers, engajamento)
+   - Temas principais de conteúdo
+   - Frequência de postagem
+   - Tipos de conteúdo que geram mais engajamento
+   - Estratégia de hashtags
+   - Taxa de engajamento e tendência
+   - Como interagem com a comunidade
 3. Compare com dados históricos e detecte MUDANÇAS SIGNIFICATIVAS
-4. Classifique cada mudança por IMPACTO (alto/médio/baixo)
-5. Sugira AÇÕES ESTRATÉGICAS em resposta
+4. Classifique cada mudança por IMPACTO (alto|médio|baixo)
+5. Sugira AÇÕES ESTRATÉGICAS e OPORTUNIDADES DE DIFERENCIAÇÃO
 
-Retorne em formato JSON estruturado com:
+Retorne em formato JSON estruturado:
 {
-  "summary": "resumo executivo",
-  "pricing": { "strategy": "...", "range": "..." },
-  "messaging": { "mainMessage": "...", "tone": "...", "keywords": [...] },
-  "features": [...],
-  "channels": [...],
+  "summary": "Resumo executivo da análise em 2-3 frases",
+  
+  "profile_analysis": {
+    "positioning": "Como o concorrente se posiciona (baseado na bio e perfil)",
+    "audience_size": "Análise do tamanho e crescimento da audiência",
+    "authority": "Nível de autoridade (verificado, followers, engajamento)"
+  },
+  
+  "content_strategy": {
+    "themes": ["tema1", "tema2", "tema3"],
+    "posting_frequency": "Análise da frequência de postagem",
+    "best_performing_content": "Tipo de conteúdo que gera mais engajamento",
+    "hashtag_strategy": "Como usam hashtags"
+  },
+  
+  "engagement_analysis": {
+    "avg_engagement_rate": "Taxa média de engajamento em %",
+    "engagement_trend": "Tendência de engajamento (crescendo/estável/caindo)",
+    "community_interaction": "Como interagem com a comunidade"
+  },
+  
+  "opportunities": [
+    "Oportunidade 1 de diferenciação",
+    "Oportunidade 2 de diferenciação",
+    "Oportunidade 3 de diferenciação"
+  ],
+  
+  "threats": [
+    "Ameaça 1 ou ponto forte do concorrente",
+    "Ameaça 2 ou ponto forte do concorrente"
+  ],
+  
   "changes": [
     {
       "description": "...",
       "impact": "alto|médio|baixo",
       "detectedAt": "date",
-      "category": "pricing|messaging|features|design"
+      "category": "profile|content|engagement|strategy"
     }
   ],
-  "strategicActions": [...]
+  
+  "recommended_actions": [
+    "Ação estratégica 1",
+    "Ação estratégica 2",
+    "Ação estratégica 3"
+  ],
+  
+  "impact_level": "low|medium|high",
+  "confidence": 0.0
 }`;
 
     // 4. Buscar configuração do Thiago

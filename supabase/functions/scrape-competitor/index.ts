@@ -135,6 +135,73 @@ async function runApifyActor({ actorId, input }: { actorId: string; input: any }
   return results;
 }
 
+function calculatePostMetrics(posts: any[]) {
+  if (!posts || posts.length === 0) {
+    return {
+      avgLikes: 0,
+      avgComments: 0,
+      postingFrequency: "0 posts/semana",
+      mostEngagedPost: null,
+      topHashtags: [],
+      postTypes: {},
+    };
+  }
+
+  const totalLikes = posts.reduce((sum, p) => sum + (p.likesCount || 0), 0);
+  const totalComments = posts.reduce((sum, p) => sum + (p.commentsCount || 0), 0);
+  
+  const avgLikes = Math.round(totalLikes / posts.length);
+  const avgComments = Math.round(totalComments / posts.length);
+  
+  // Posting frequency
+  const oldestPost = new Date(posts[posts.length - 1]?.timestamp || Date.now());
+  const newestPost = new Date(posts[0]?.timestamp || Date.now());
+  const daysDiff = Math.max(1, (newestPost.getTime() - oldestPost.getTime()) / (1000 * 60 * 60 * 24));
+  const postsPerWeek = (posts.length / daysDiff) * 7;
+  
+  // Most engaged post
+  const mostEngagedPost = posts.reduce((max, p) => {
+    const engagement = (p.likesCount || 0) + (p.commentsCount || 0);
+    const maxEngagement = (max.likesCount || 0) + (max.commentsCount || 0);
+    return engagement > maxEngagement ? p : max;
+  }, posts[0]);
+  
+  // Top hashtags
+  const hashtagCounts: Record<string, number> = {};
+  posts.forEach(p => {
+    const caption = p.caption || "";
+    const hashtags = caption.match(/#\w+/g) || [];
+    hashtags.forEach(tag => {
+      hashtagCounts[tag] = (hashtagCounts[tag] || 0) + 1;
+    });
+  });
+  const topHashtags = Object.entries(hashtagCounts)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 10)
+    .map(([tag]) => tag);
+  
+  // Post types
+  const postTypes = posts.reduce((acc, p) => {
+    const type = p.type || "image";
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return {
+    avgLikes,
+    avgComments,
+    postingFrequency: `${postsPerWeek.toFixed(1)} posts/semana`,
+    mostEngagedPost: {
+      url: mostEngagedPost.url,
+      caption: mostEngagedPost.caption?.substring(0, 100),
+      likes: mostEngagedPost.likesCount,
+      comments: mostEngagedPost.commentsCount,
+    },
+    topHashtags,
+    postTypes,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -186,45 +253,114 @@ serve(async (req) => {
       }
     }
 
-    // Instagram scraping
+    // Instagram scraping - USAR AMBOS OS ACTORS
     if (platforms.instagram) {
       try {
         console.log(`📷 Processing Instagram: ${platforms.instagram}`);
-        const username = platforms.instagram.replace("@", "").replace("https://instagram.com/", "").split("/")[0];
+        const username = platforms.instagram
+          .replace("@", "")
+          .replace("https://instagram.com/", "")
+          .replace("https://www.instagram.com/", "")
+          .split("/")[0];
         
-        let instaData;
-        let runInfo;
+        let profileData;
+        let postsData;
+        let runInfo = { id: null, finishedAt: null };
         
-        // Escolher entre trigger novo scraping ou buscar resultado existente
         if (mode === "fetch") {
           console.log(`📥 Fetching latest data for @${username}...`);
-          const fetchResult = await fetchLatestApifyRun({
-            actorId: "apify/instagram-profile-scraper",
+          
+          // FETCH: Buscar dados do perfil
+          const profileResult = await fetchLatestApifyRun({
+            actorId: "apify/instagram-scraper",
             username: username
           });
-          instaData = fetchResult.results;
-          runInfo = fetchResult.runInfo;
+          profileData = profileResult.results[0];
+          runInfo = profileResult.runInfo;
+          
+          // FETCH: Buscar posts
+          const postsResult = await fetchLatestApifyRun({
+            actorId: "apify/instagram-post-scraper",
+            username: username
+          });
+          postsData = postsResult.results;
+          
         } else {
           console.log(`🚀 Triggering new scraping for @${username}...`);
-          instaData = await runApifyActor({
-            actorId: "apify/instagram-profile-scraper",
+          
+          // TRIGGER: Scraping do perfil
+          const profileResults = await runApifyActor({
+            actorId: "apify/instagram-scraper",
             input: {
               usernames: [username],
-              resultsLimit: scrapeType === "full" ? 50 : 10,
+              resultsType: "details",
+            },
+          });
+          profileData = profileResults[0];
+          
+          // TRIGGER: Scraping dos posts
+          postsData = await runApifyActor({
+            actorId: "apify/instagram-post-scraper",
+            input: {
+              usernames: [username],
+              resultsLimit: scrapeType === "full" ? 50 : 20,
             },
           });
         }
 
+        // Calcular métricas agregadas dos posts
+        const postMetrics = calculatePostMetrics(postsData);
+
+        // Calcular engagement rate com dados do perfil
+        if (profileData?.followersCount && postsData.length > 0) {
+          const totalEngagement = postsData.reduce((sum, p) => 
+            sum + (p.likesCount || 0) + (p.commentsCount || 0), 0
+          );
+          const avgEngagement = totalEngagement / postsData.length;
+          postMetrics.avgEngagementRate = ((avgEngagement / profileData.followersCount) * 100).toFixed(2);
+        }
+
+        // Salvar dados COMBINADOS no banco
         await supabase.from("competitor_data").insert({
           user_id: userId,
           competitor_name: competitorName,
           platform: "instagram",
-          data_type: "social",
+          data_type: "combined",
           data: {
             username: username,
-            profile: instaData[0] || {},
-            posts: instaData.slice(0, 10),
-            apifyRunId: runInfo?.id,
+            
+            // DADOS DO PERFIL
+            profile: {
+              fullName: profileData?.fullName,
+              biography: profileData?.biography,
+              followersCount: profileData?.followersCount,
+              followsCount: profileData?.followsCount,
+              postsCount: profileData?.postsCount,
+              verified: profileData?.verified,
+              isPrivate: profileData?.isPrivate,
+              profilePicUrl: profileData?.profilePicUrl,
+              externalUrl: profileData?.externalUrl,
+            },
+            
+            // DADOS DOS POSTS
+            posts: postsData.slice(0, 30),
+            
+            // MÉTRICAS CALCULADAS
+            metrics: {
+              totalPostsAnalyzed: postsData.length,
+              avgLikes: postMetrics.avgLikes,
+              avgComments: postMetrics.avgComments,
+              avgEngagementRate: postMetrics.avgEngagementRate || 0,
+              postingFrequency: postMetrics.postingFrequency,
+              mostEngagedPost: postMetrics.mostEngagedPost,
+              topHashtags: postMetrics.topHashtags,
+              postTypes: postMetrics.postTypes,
+            },
+            
+            apifyRunIds: {
+              profile: runInfo?.id,
+              posts: runInfo?.id,
+            },
             scrapedAt: runInfo?.finishedAt || new Date().toISOString(),
           },
           scraped_at: runInfo?.finishedAt || new Date().toISOString(),
@@ -232,13 +368,17 @@ serve(async (req) => {
 
         results.push({ 
           platform: "instagram", 
-          itemsScraped: instaData.length,
+          profileScraped: !!profileData,
+          postsScraped: postsData.length,
           mode: mode,
-          runId: runInfo?.id
         });
+        
       } catch (error) {
         console.error("❌ Instagram processing error:", error);
-        results.push({ platform: "instagram", error: (error as Error).message });
+        results.push({ 
+          platform: "instagram", 
+          error: (error as Error).message 
+        });
       }
     }
 

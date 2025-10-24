@@ -1,12 +1,58 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+export interface InstagramPost {
+  url: string;
+  caption: string;
+  likesCount: number;
+  commentsCount: number;
+  timestamp: string;
+  type?: string;
+  ownerUsername?: string;
+}
+
 export interface CompetitorData {
   id: string;
   competitor_name: string;
   platform: string;
   data_type: string;
-  data: any;
+  data: {
+    username?: string;
+    
+    // Dados do perfil
+    profile?: {
+      fullName?: string;
+      biography?: string;
+      followersCount?: number;
+      followsCount?: number;
+      postsCount?: number;
+      verified?: boolean;
+      isPrivate?: boolean;
+      profilePicUrl?: string;
+      externalUrl?: string;
+    };
+    
+    // Posts
+    posts?: InstagramPost[];
+    
+    // Métricas agregadas
+    metrics?: {
+      totalPostsAnalyzed?: number;
+      avgLikes?: number;
+      avgComments?: number;
+      avgEngagementRate?: string | number;
+      postingFrequency?: string;
+      mostEngagedPost?: any;
+      topHashtags?: string[];
+      postTypes?: Record<string, number>;
+    };
+
+    // Análise AI
+    analysis?: any;
+    
+    // Legacy fields
+    [key: string]: any;
+  };
   scraped_at: string;
 }
 
@@ -121,7 +167,7 @@ export function useCompetitorData(userId?: string) {
 
       if (error) throw error;
 
-      setRecentInsights(data || []);
+      setRecentInsights((data || []) as CompetitorData[]);
     } catch (error) {
       console.error("Error fetching insights:", error);
     }
