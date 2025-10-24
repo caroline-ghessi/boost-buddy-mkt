@@ -1,5 +1,4 @@
-// Helper function to refresh Google OAuth tokens
-// Used by other edge functions, not called directly
+// Shared helper functions for Google OAuth token management
 
 export async function refreshAccessToken(refreshToken: string): Promise<{
   access_token: string;
