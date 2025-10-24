@@ -55,8 +55,11 @@ export const useGoogleMetrics = () => {
 
   const connectGoogle = async () => {
     try {
+      console.log('[useGoogleMetrics] Starting Google connection...');
+      
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        console.error('[useGoogleMetrics] No active session found');
         toast({
           title: "Erro de autenticação",
           description: "Você precisa estar logado para conectar o Google.",
@@ -65,21 +68,44 @@ export const useGoogleMetrics = () => {
         return;
       }
 
+      console.log('[useGoogleMetrics] Invoking google-oauth-authorize edge function...');
+      
       const { data, error } = await supabase.functions.invoke('google-oauth-authorize', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
 
-      if (error) throw error;
+      console.log('[useGoogleMetrics] Edge function response:', { data, error });
+
+      if (error) {
+        console.error('[useGoogleMetrics] Edge function error:', error);
+        throw error;
+      }
+      
+      if (data?.error) {
+        console.error('[useGoogleMetrics] Edge function returned error:', data.error);
+        throw new Error(data.error);
+      }
+      
       if (data?.url) {
+        console.log('[useGoogleMetrics] Redirecting to OAuth URL...');
         window.location.href = data.url;
+      } else {
+        console.error('[useGoogleMetrics] No URL returned from edge function');
+        throw new Error('Edge function did not return authorization URL');
       }
     } catch (error: any) {
-      console.error('Error connecting Google:', error);
+      console.error('[useGoogleMetrics] Connection error:', error);
+      console.error('[useGoogleMetrics] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        full: error
+      });
+      
       toast({
         title: "Erro ao conectar",
-        description: error.message || "Não foi possível iniciar a conexão com o Google.",
+        description: error.message || "Não foi possível iniciar a conexão com o Google. Verifique o console para mais detalhes.",
         variant: "destructive",
       });
     }

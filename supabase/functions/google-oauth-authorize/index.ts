@@ -7,19 +7,33 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  console.log('[google-oauth-authorize] Function invoked');
+  
   if (req.method === 'OPTIONS') {
+    console.log('[google-oauth-authorize] Handling CORS preflight');
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    console.log('[google-oauth-authorize] Processing OAuth request');
+    
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('[google-oauth-authorize] Missing authorization header');
       throw new Error('Missing authorization header');
     }
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[google-oauth-authorize] Missing Supabase environment variables');
+      throw new Error('Server configuration error: Missing Supabase credentials');
+    }
+    
+    console.log('[google-oauth-authorize] Supabase URL:', supabaseUrl);
+    
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: {
         headers: { Authorization: authHeader },
@@ -27,17 +41,35 @@ serve(async (req) => {
     });
 
     // Get user from token
+    console.log('[google-oauth-authorize] Verifying user authentication');
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
+      console.error('[google-oauth-authorize] User authentication failed:', userError);
       throw new Error('Unauthorized');
     }
+    
+    console.log('[google-oauth-authorize] User authenticated:', user.id);
 
+    // Check all required secrets
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
-    const redirectUri = `${supabaseUrl}/functions/v1/google-oauth-callback`;
-
+    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+    
+    console.log('[google-oauth-authorize] Checking secrets...');
+    console.log('[google-oauth-authorize] GOOGLE_CLIENT_ID present:', !!clientId);
+    console.log('[google-oauth-authorize] GOOGLE_CLIENT_SECRET present:', !!clientSecret);
+    
     if (!clientId) {
-      throw new Error('Google Client ID not configured');
+      console.error('[google-oauth-authorize] GOOGLE_CLIENT_ID not configured');
+      throw new Error('Google Client ID not configured. Please add it in Supabase Edge Function secrets.');
     }
+    
+    if (!clientSecret) {
+      console.error('[google-oauth-authorize] GOOGLE_CLIENT_SECRET not configured');
+      throw new Error('Google Client Secret not configured. Please add it in Supabase Edge Function secrets.');
+    }
+    
+    const redirectUri = `${supabaseUrl}/functions/v1/google-oauth-callback`;
+    console.log('[google-oauth-authorize] Redirect URI:', redirectUri);
 
     // Build Google OAuth URL with proper scopes
     const scopes = [
@@ -57,7 +89,7 @@ serve(async (req) => {
     authUrl.searchParams.set('access_type', 'offline');
     authUrl.searchParams.set('prompt', 'consent'); // Force to get refresh token
 
-    console.log('Generated OAuth URL:', authUrl.toString());
+    console.log('[google-oauth-authorize] Generated OAuth URL:', authUrl.toString());
 
     return new Response(
       JSON.stringify({ url: authUrl.toString() }),
@@ -68,9 +100,16 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in google-oauth-authorize:', error);
+    console.error('[google-oauth-authorize] Error occurred:', error);
+    console.error('[google-oauth-authorize] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ 
+        error: errorMessage,
+        details: 'Check Edge Function logs for more information'
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500 
