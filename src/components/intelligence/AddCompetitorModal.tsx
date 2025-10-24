@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useCompetitorMonitoring } from "@/hooks/useCompetitorMonitoring";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface AddCompetitorModalProps {
   isOpen: boolean;
@@ -40,11 +41,19 @@ export function AddCompetitorModal({ isOpen, onClose, onSuccess }: AddCompetitor
   });
 
   const { startMonitoring, isScrapingLoading } = useCompetitorMonitoring();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const handleSubmit = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      if (!user) {
+        toast({
+          variant: "destructive",
+          title: "Erro de autenticação",
+          description: "Você precisa estar logado para adicionar competidores.",
+        });
+        return;
+      }
 
       await startMonitoring(
         competitorData.name,

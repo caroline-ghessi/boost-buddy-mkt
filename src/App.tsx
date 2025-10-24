@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
 import Chat from "./pages/Chat";
 import KnowledgeBase from "./pages/KnowledgeBase";
@@ -15,36 +17,42 @@ import CampaignReview from "./pages/CampaignReview";
 import CompetitiveIntelligence from "./pages/CompetitiveIntelligence";
 import CompetitorDetail from "./pages/CompetitorDetail";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<AppLayout><Chat /></AppLayout>} />
-          <Route path="/knowledge" element={<AppLayout><KnowledgeBase /></AppLayout>} />
-          <Route path="/team" element={<AppLayout><Team /></AppLayout>} />
-          <Route path="/performance" element={<AppLayout><Performance /></AppLayout>} />
-          <Route path="/settings" element={<AppLayout><Settings /></AppLayout>} />
-          
-          {/* Campaign Routes - SPRINT 5 */}
-          <Route path="/campaigns/new" element={<AppLayout><CampaignBuilder /></AppLayout>} />
-          <Route path="/campaigns/:id/progress" element={<AppLayout><CampaignProgress /></AppLayout>} />
-          <Route path="/campaigns/:id/review" element={<AppLayout><CampaignReview /></AppLayout>} />
-          
-          {/* Competitive Intelligence Routes - SPRINT 7 */}
-          <Route path="/competitive-intelligence" element={<AppLayout><CompetitiveIntelligence /></AppLayout>} />
-          <Route path="/competitive-intelligence/:competitorName" element={<AppLayout><CompetitorDetail /></AppLayout>} />
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/" element={<ProtectedRoute><AppLayout><Chat /></AppLayout></ProtectedRoute>} />
+            <Route path="/knowledge" element={<ProtectedRoute><AppLayout><KnowledgeBase /></AppLayout></ProtectedRoute>} />
+            <Route path="/team" element={<ProtectedRoute><AppLayout><Team /></AppLayout></ProtectedRoute>} />
+            <Route path="/performance" element={<ProtectedRoute><AppLayout><Performance /></AppLayout></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>} />
+            
+            {/* Campaign Routes - SPRINT 5 */}
+            <Route path="/campaigns/new" element={<ProtectedRoute><AppLayout><CampaignBuilder /></AppLayout></ProtectedRoute>} />
+            <Route path="/campaigns/:id/progress" element={<ProtectedRoute><AppLayout><CampaignProgress /></AppLayout></ProtectedRoute>} />
+            <Route path="/campaigns/:id/review" element={<ProtectedRoute><AppLayout><CampaignReview /></AppLayout></ProtectedRoute>} />
+            
+            {/* Competitive Intelligence Routes - SPRINT 7 */}
+            <Route path="/competitive-intelligence" element={<ProtectedRoute><AppLayout><CompetitiveIntelligence /></AppLayout></ProtectedRoute>} />
+            <Route path="/competitive-intelligence/:competitorName" element={<ProtectedRoute><AppLayout><CompetitorDetail /></AppLayout></ProtectedRoute>} />
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
