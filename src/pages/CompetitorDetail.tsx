@@ -3,12 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, RefreshCw, Pause, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, RefreshCw, Pause, Download, Clock } from "lucide-react";
 import { CompetitorOverview } from "@/components/intelligence/CompetitorOverview";
 import { ChangeTimeline } from "@/components/intelligence/ChangeTimeline";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompetitorMonitoring } from "@/hooks/useCompetitorMonitoring";
 import { toast } from "sonner";
+import { getStalenessInfo, formatNextScheduledScrape } from "@/lib/dateUtils";
 
 export default function CompetitorDetail() {
   const { competitorName } = useParams<{ competitorName: string }>();
@@ -103,6 +105,10 @@ export default function CompetitorDetail() {
   };
 
   const insights = competitorData.filter((d) => d.data_type === "ai_insights");
+  const latestCombinedData = competitorData.find((d) => d.data_type === "combined");
+  const scrapedAt = latestCombinedData?.scraped_at;
+  const stalenessInfo = scrapedAt ? getStalenessInfo(scrapedAt) : null;
+  
   const competitor = {
     name: competitorName,
     data: competitorData,
@@ -125,9 +131,17 @@ export default function CompetitorDetail() {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold">{competitorName}</h1>
-            <p className="text-muted-foreground">
-              Monitoramento por Thiago Costa 🐶
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">{competitorName}</h1>
+              {stalenessInfo && (
+                <Badge variant={stalenessInfo.badgeVariant}>
+                  <Clock className="w-3 h-3 mr-1" />
+                  {stalenessInfo.label}
+                </Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground mt-1">
+              Monitoramento por Thiago Costa 🐶 • Próxima atualização: {formatNextScheduledScrape()}
             </p>
           </div>
         </div>
@@ -139,15 +153,15 @@ export default function CompetitorDetail() {
             disabled={isScrapingLoading}
           >
             <Download className={`w-4 h-4 mr-2 ${isScrapingLoading ? "animate-spin" : ""}`} />
-            Sincronizar Apify
+            Buscar Última Execução
           </Button>
           <Button
-            variant="outline"
+            variant={stalenessInfo?.isStale ? "default" : "outline"}
             onClick={handleManualScrape}
             disabled={isScrapingLoading}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isScrapingLoading ? "animate-spin" : ""}`} />
-            Novo Scraping
+            {stalenessInfo?.isStale ? "Atualizar Agora" : "Scraping Manual"}
           </Button>
           <Button variant="outline">
             <Pause className="w-4 h-4 mr-2" />

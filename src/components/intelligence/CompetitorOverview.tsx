@@ -1,7 +1,9 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CompetitorData } from "@/hooks/useCompetitorData";
-import { Users, UserPlus, Image, Heart, MessageCircle, Calendar, CheckCircle, BarChart } from "lucide-react";
+import { Users, UserPlus, Image, Heart, MessageCircle, Calendar, CheckCircle, BarChart, Clock, AlertCircle } from "lucide-react";
+import { formatTimeAgo, getStalenessInfo, formatNextScheduledScrape } from "@/lib/dateUtils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface CompetitorOverviewProps {
   competitor: any;
@@ -13,6 +15,11 @@ export function CompetitorOverview({ competitor, insights }: CompetitorOverviewP
   const profile = latestData?.data?.profile;
   const metrics = latestData?.data?.metrics;
   const analysis = latestData?.data?.analysis;
+  const scrapeMetadata = latestData?.data?.scrapeMetadata;
+  
+  // Get staleness information
+  const scrapedAt = latestData?.scraped_at || latestData?.data?.scrapeMetadata?.scrapedAt;
+  const stalenessInfo = scrapedAt ? getStalenessInfo(scrapedAt) : null;
 
   if (!latestData) {
     return (
@@ -26,6 +33,38 @@ export function CompetitorOverview({ competitor, insights }: CompetitorOverviewP
 
   return (
     <div className="space-y-6">
+      
+      {/* Data Freshness Alert */}
+      {stalenessInfo && (
+        <Alert variant={stalenessInfo.severity === 'very-stale' ? 'destructive' : 'default'}>
+          <Clock className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <div>
+              <span className="font-medium">{stalenessInfo.label}</span>
+              {' • '}
+              <span className="text-sm opacity-90">
+                {scrapeMetadata?.dataSource === 'scheduled_run' 
+                  ? '📅 Scraping programado (sextas 7h)' 
+                  : '🔄 Scraping manual'}
+              </span>
+              {stalenessInfo.isStale && (
+                <>
+                  {' • '}
+                  <span className="text-sm">
+                    Próxima atualização automática: {formatNextScheduledScrape()}
+                  </span>
+                </>
+              )}
+            </div>
+            {stalenessInfo.isStale && (
+              <Badge variant={stalenessInfo.badgeVariant} className="ml-2">
+                <AlertCircle className="w-3 h-3 mr-1" />
+                Dados desatualizados
+              </Badge>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       
       {/* SEÇÃO 1: Dados do Perfil */}
       {profile && (

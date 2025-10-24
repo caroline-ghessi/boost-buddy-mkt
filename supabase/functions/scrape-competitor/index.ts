@@ -19,120 +19,92 @@ interface ScrapeRequest {
   mode?: "trigger" | "fetch"; // Modo de operação: trigger = novo scraping, fetch = buscar resultado existente
 }
 
+// Fetch latest scheduled run results (optimized endpoint)
 async function fetchLatestApifyRun({ actorId, username }: { actorId: string; username?: string }) {
   const APIFY_API_TOKEN = Deno.env.get("APIFY_API_TOKEN");
   
-  console.log(`📥 Fetching latest run for actor: ${actorId}`);
+  console.log(`📥 Fetching latest run results for actor: ${actorId}${username ? ` (@${username})` : ''}`);
   
-  // 1. Listar últimos runs do actor
-  const runsRes = await fetch(
-    `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_TOKEN}&status=SUCCEEDED&limit=10`
-  );
-  
-  const { data: { items: runs } } = await runsRes.json();
-  
-  if (!runs || runs.length === 0) {
-    throw new Error(`No successful runs found for actor ${actorId}`);
-  }
-  
-  // 2. Se username fornecido, buscar run específico para esse username
-  let targetRun = runs[0]; // Por padrão, pegar o mais recente
-  
-  if (username) {
-    // Verificar qual run é para o username específico
-    for (const run of runs) {
-      try {
-        // Buscar input do run para verificar se é o username correto
-        const inputRes = await fetch(
-          `https://api.apify.com/v2/actor-runs/${run.id}/input?token=${APIFY_API_TOKEN}`
-        );
-        const runInput = await inputRes.json();
-        
-        if (runInput.usernames && runInput.usernames.includes(username)) {
-          targetRun = run;
-          console.log(`🎯 Found matching run for @${username}`);
-          break;
-        }
-      } catch (error) {
-        console.log(`⚠️ Could not check run ${run.id}:`, (error as Error).message);
-        continue;
+  try {
+    // Use the optimized endpoint to get last run dataset items directly
+    const endpoint = `https://api.apify.com/v2/acts/${actorId}/runs/last/dataset/items?token=${APIFY_API_TOKEN}&status=SUCCEEDED`;
+    
+    const response = await fetch(endpoint);
+    
+    if (!response.ok) {
+      throw new Error(`Apify API returned ${response.status}: ${response.statusText}`);
+    }
+    
+    const results = await response.json();
+    
+    if (!results || results.length === 0) {
+      throw new Error(`No data found in last successful run for actor ${actorId}`);
+    }
+    
+    // Get run metadata from headers
+    const runId = response.headers.get('x-apify-run-id');
+    const finishedAt = response.headers.get('x-apify-run-finished-at') || new Date().toISOString();
+    
+    console.log(`✅ Retrieved ${results.length} items from last run (${runId})`);
+    console.log(`📅 Run finished at: ${finishedAt}`);
+    
+    return {
+      results,
+      runInfo: {
+        id: runId,
+        finishedAt,
+        stats: null
       }
-    }
+    };
+  } catch (error) {
+    console.error(`❌ Error fetching latest run for ${actorId}:`, (error as Error).message);
+    throw error;
   }
-  
-  console.log(`✅ Using run ID: ${targetRun.id}, finished at: ${targetRun.finishedAt}`);
-  
-  // 3. Buscar dados do dataset
-  const datasetId = targetRun.defaultDatasetId;
-  const resultsRes = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_TOKEN}`
-  );
-  
-  const results = await resultsRes.json();
-  console.log(`📊 Retrieved ${results.length} items from latest run`);
-  
-  return {
-    results,
-    runInfo: {
-      id: targetRun.id,
-      finishedAt: targetRun.finishedAt,
-      stats: targetRun.stats
-    }
-  };
 }
 
-async function runApifyActor({ actorId, input }: { actorId: string; input: any }) {
+// Run actor synchronously (optimized endpoint - no polling needed)
+async function runApifyActorSync({ actorId, input }: { actorId: string; input: any }) {
   const APIFY_API_TOKEN = Deno.env.get("APIFY_API_TOKEN");
   
-  console.log(`🚀 Starting Apify actor: ${actorId}`);
+  console.log(`🚀 Running Apify actor synchronously: ${actorId}`);
+  console.log(`📋 Input:`, JSON.stringify(input, null, 2));
   
-  // 1. Start actor run
-  const startRes = await fetch(
-    `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_API_TOKEN}`,
-    {
+  try {
+    // Use synchronous endpoint that waits for completion and returns dataset items directly
+    const endpoint = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${APIFY_API_TOKEN}`;
+    
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Apify API error ${response.status}: ${errorText}`);
     }
-  );
-  
-  const { data: run } = await startRes.json();
-  const runId = run.id;
-  
-  console.log(`⏳ Actor run ID: ${runId}, polling for completion...`);
-  
-  // 2. Poll for completion (max 5 min)
-  let status = "RUNNING";
-  let attempts = 0;
-  const maxAttempts = 60; // 60 * 5s = 5 min
-  
-  while (status === "RUNNING" && attempts < maxAttempts) {
-    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s
     
-    const statusRes = await fetch(
-      `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_TOKEN}`
-    );
-    const { data: runData } = await statusRes.json();
-    status = runData.status;
-    attempts++;
+    const results = await response.json();
     
-    console.log(`📊 Status check ${attempts}/${maxAttempts}: ${status}`);
+    // Get run metadata from headers
+    const runId = response.headers.get('x-apify-run-id');
+    const finishedAt = response.headers.get('x-apify-run-finished-at') || new Date().toISOString();
+    
+    console.log(`✅ Actor completed synchronously, ${results.length} items scraped`);
+    console.log(`🆔 Run ID: ${runId}`);
+    console.log(`📅 Finished at: ${finishedAt}`);
+    
+    return {
+      results,
+      runInfo: {
+        id: runId,
+        finishedAt
+      }
+    };
+  } catch (error) {
+    console.error(`❌ Error running actor ${actorId}:`, (error as Error).message);
+    throw error;
   }
-  
-  if (status !== "SUCCEEDED") {
-    throw new Error(`Apify run failed with status: ${status}`);
-  }
-  
-  // 3. Get results from default dataset
-  const datasetId = run.defaultDatasetId;
-  const resultsRes = await fetch(
-    `https://api.apify.com/v2/datasets/${datasetId}/items?token=${APIFY_API_TOKEN}`
-  );
-  
-  const results = await resultsRes.json();
-  console.log(`✅ Actor completed, ${results.length} items scraped`);
-  
-  return results;
 }
 
 function calculatePostMetrics(posts: any[]) {
@@ -253,10 +225,10 @@ serve(async (req) => {
       }
     }
 
-    // Instagram scraping - USAR AMBOS OS ACTORS
+    // Instagram scraping - HYBRID MODE
     if (platforms.instagram) {
       try {
-        console.log(`📷 Processing Instagram: ${platforms.instagram}`);
+        console.log(`📷 Processing Instagram: ${platforms.instagram} (mode: ${mode})`);
         const username = platforms.instagram
           .replace("@", "")
           .replace("https://instagram.com/", "")
@@ -266,46 +238,61 @@ serve(async (req) => {
         let profileData;
         let postsData;
         let runInfo = { id: null, finishedAt: null };
+        let scrapingMode = mode; // Track actual mode used
         
         if (mode === "fetch") {
-          console.log(`📥 Fetching latest data for @${username}...`);
+          console.log(`📥 Fetching latest scheduled data for @${username}...`);
           
-          // FETCH: Buscar dados do perfil
-          const profileResult = await fetchLatestApifyRun({
-            actorId: "apify/instagram-scraper",
-            username: username
-          });
-          profileData = profileResult.results[0];
-          runInfo = profileResult.runInfo;
+          try {
+            // FETCH: Buscar dados do último run programado do perfil
+            const profileResult = await fetchLatestApifyRun({
+              actorId: "apify/instagram-scraper",
+              username: username
+            });
+            profileData = profileResult.results[0];
+            runInfo = profileResult.runInfo;
+            
+            // FETCH: Buscar posts do último run programado
+            const postsResult = await fetchLatestApifyRun({
+              actorId: "apify/instagram-post-scraper",
+              username: username
+            });
+            postsData = postsResult.results;
+            
+            console.log(`✅ Fetched data from scheduled run: ${runInfo.finishedAt}`);
+            
+          } catch (fetchError) {
+            console.warn(`⚠️ Could not fetch scheduled data: ${(fetchError as Error).message}`);
+            console.log(`🔄 Falling back to on-demand scraping...`);
+            scrapingMode = "trigger"; // Fall back to trigger mode
+          }
+        }
+        
+        if (mode === "trigger" || scrapingMode === "trigger") {
+          console.log(`🚀 Running on-demand scraping for @${username}...`);
           
-          // FETCH: Buscar posts
-          const postsResult = await fetchLatestApifyRun({
-            actorId: "apify/instagram-post-scraper",
-            username: username
-          });
-          postsData = postsResult.results;
-          
-        } else {
-          console.log(`🚀 Triggering new scraping for @${username}...`);
-          
-          // TRIGGER: Scraping do perfil
-          const profileResults = await runApifyActor({
+          // TRIGGER: Scraping síncrono do perfil
+          const profileResult = await runApifyActorSync({
             actorId: "apify/instagram-scraper",
             input: {
               usernames: [username],
               resultsType: "details",
             },
           });
-          profileData = profileResults[0];
+          profileData = profileResult.results[0];
+          runInfo = profileResult.runInfo;
           
-          // TRIGGER: Scraping dos posts
-          postsData = await runApifyActor({
+          // TRIGGER: Scraping síncrono dos posts
+          const postsResult = await runApifyActorSync({
             actorId: "apify/instagram-post-scraper",
             input: {
               usernames: [username],
               resultsLimit: scrapeType === "full" ? 50 : 20,
             },
           });
+          postsData = postsResult.results;
+          
+          console.log(`✅ On-demand scraping completed`);
         }
 
         // Calcular métricas agregadas dos posts
@@ -320,7 +307,9 @@ serve(async (req) => {
           postMetrics.avgEngagementRate = ((avgEngagement / profileData.followersCount) * 100).toFixed(2);
         }
 
-        // Salvar dados COMBINADOS no banco
+        // Salvar dados COMBINADOS no banco com metadata completa
+        const scrapedAt = runInfo?.finishedAt || new Date().toISOString();
+        
         await supabase.from("competitor_data").insert({
           user_id: userId,
           competitor_name: competitorName,
@@ -357,20 +346,25 @@ serve(async (req) => {
               postTypes: postMetrics.postTypes,
             },
             
-            apifyRunIds: {
-              profile: runInfo?.id,
-              posts: runInfo?.id,
+            // METADATA DO SCRAPING
+            scrapeMetadata: {
+              mode: scrapingMode, // "fetch" ou "trigger"
+              apifyRunId: runInfo?.id,
+              scrapedAt: scrapedAt,
+              dataSource: mode === "fetch" ? "scheduled_run" : "on_demand",
             },
-            scrapedAt: runInfo?.finishedAt || new Date().toISOString(),
           },
-          scraped_at: runInfo?.finishedAt || new Date().toISOString(),
+          scraped_at: scrapedAt,
         });
+
+        console.log(`💾 Data saved to database (scraped_at: ${scrapedAt}, mode: ${scrapingMode})`);
 
         results.push({ 
           platform: "instagram", 
           profileScraped: !!profileData,
           postsScraped: postsData.length,
-          mode: mode,
+          mode: scrapingMode,
+          scrapedAt: scrapedAt,
         });
         
       } catch (error) {
