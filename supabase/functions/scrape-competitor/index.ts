@@ -143,7 +143,7 @@ function calculatePostMetrics(posts: any[]) {
   posts.forEach(p => {
     const caption = p.caption || "";
     const hashtags = caption.match(/#\w+/g) || [];
-    hashtags.forEach(tag => {
+    hashtags.forEach((tag: string) => {
       hashtagCounts[tag] = (hashtagCounts[tag] || 0) + 1;
     });
   });
@@ -195,7 +195,7 @@ serve(async (req) => {
     if (platforms.website) {
       try {
         console.log(`🌐 Scraping website: ${platforms.website}`);
-        const websiteData = await runApifyActor({
+        const websiteResult = await runApifyActorSync({
           actorId: "apify/website-content-crawler",
           input: {
             startUrls: [{ url: platforms.website }],
@@ -204,6 +204,7 @@ serve(async (req) => {
             proxyConfiguration: { useApifyProxy: true },
           },
         });
+        const websiteData = websiteResult.results;
 
         await supabase.from("competitor_data").insert({
           user_id: userId,
@@ -237,7 +238,7 @@ serve(async (req) => {
         
         let profileData;
         let postsData;
-        let runInfo = { id: null, finishedAt: null };
+        let runInfo: { id: string | null; finishedAt: string | null } = { id: null, finishedAt: null };
         let scrapingMode = mode; // Track actual mode used
         
         if (mode === "fetch") {
@@ -300,11 +301,11 @@ serve(async (req) => {
 
         // Calcular engagement rate com dados do perfil
         if (profileData?.followersCount && postsData.length > 0) {
-          const totalEngagement = postsData.reduce((sum, p) => 
+          const totalEngagement = postsData.reduce((sum: number, p: any) => 
             sum + (p.likesCount || 0) + (p.commentsCount || 0), 0
           );
           const avgEngagement = totalEngagement / postsData.length;
-          postMetrics.avgEngagementRate = ((avgEngagement / profileData.followersCount) * 100).toFixed(2);
+          (postMetrics as any).avgEngagementRate = ((avgEngagement / profileData.followersCount) * 100).toFixed(2);
         }
 
         // Salvar dados COMBINADOS no banco com metadata completa
@@ -339,7 +340,7 @@ serve(async (req) => {
               totalPostsAnalyzed: postsData.length,
               avgLikes: postMetrics.avgLikes,
               avgComments: postMetrics.avgComments,
-              avgEngagementRate: postMetrics.avgEngagementRate || 0,
+              avgEngagementRate: (postMetrics as any).avgEngagementRate || 0,
               postingFrequency: postMetrics.postingFrequency,
               mostEngagedPost: postMetrics.mostEngagedPost,
               topHashtags: postMetrics.topHashtags,
@@ -380,13 +381,14 @@ serve(async (req) => {
     if (platforms.facebook) {
       try {
         console.log(`📘 Scraping Facebook: ${platforms.facebook}`);
-        const fbData = await runApifyActor({
+        const fbResult = await runApifyActorSync({
           actorId: "apify/facebook-pages-scraper",
           input: {
             startUrls: [`https://www.facebook.com/${platforms.facebook}`],
             maxPosts: scrapeType === "full" ? 50 : 10,
           },
         });
+        const fbData = fbResult.results;
 
         await supabase.from("competitor_data").insert({
           user_id: userId,
@@ -411,12 +413,13 @@ serve(async (req) => {
     if (platforms.linkedin) {
       try {
         console.log(`💼 Scraping LinkedIn: ${platforms.linkedin}`);
-        const linkedinData = await runApifyActor({
+        const linkedinResult = await runApifyActorSync({
           actorId: "apify/linkedin-company-scraper",
           input: {
             companyUrls: [`https://www.linkedin.com/company/${platforms.linkedin}`],
           },
         });
+        const linkedinData = linkedinResult.results;
 
         await supabase.from("competitor_data").insert({
           user_id: userId,
