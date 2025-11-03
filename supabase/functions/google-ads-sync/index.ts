@@ -41,7 +41,24 @@ serve(async (req) => {
 
     // Get valid access token
     const accessToken = await getValidAccessToken(supabase, user.id);
+    
+    // Get Google Ads credentials from environment
     const customerId = Deno.env.get('GOOGLE_ADS_CUSTOMER_ID');
+    const loginCustomerId = Deno.env.get('GOOGLE_ADS_LOGIN_CUSTOMER_ID');
+    const developerToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN');
+
+    // Validate required secrets
+    if (!customerId) {
+      throw new Error('GOOGLE_ADS_CUSTOMER_ID not configured');
+    }
+    if (!developerToken) {
+      throw new Error('GOOGLE_ADS_DEVELOPER_TOKEN not configured');
+    }
+    if (!loginCustomerId) {
+      console.warn('GOOGLE_ADS_LOGIN_CUSTOMER_ID not set. Required for MCC accounts.');
+    }
+
+    console.log(`Using Customer ID: ${customerId}, Login Customer ID: ${loginCustomerId || 'none'}`);
 
     // Build GAQL query
     const query = `
@@ -69,7 +86,8 @@ serve(async (req) => {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'developer-token': Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN') || '', // Optional
+          'developer-token': developerToken,
+          'login-customer-id': loginCustomerId || customerId,
         },
         body: JSON.stringify({ query }),
       }
@@ -77,8 +95,14 @@ serve(async (req) => {
 
     if (!adsResponse.ok) {
       const errorText = await adsResponse.text();
-      console.error('Google Ads API error:', errorText);
-      throw new Error(`Google Ads API failed: ${adsResponse.status}`);
+      console.error('Google Ads API error details:', {
+        status: adsResponse.status,
+        statusText: adsResponse.statusText,
+        error: errorText,
+        customerId,
+        loginCustomerId,
+      });
+      throw new Error(`Google Ads API failed: ${adsResponse.status} - ${errorText}`);
     }
 
     const adsData = await adsResponse.json();
