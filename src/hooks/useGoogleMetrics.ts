@@ -118,36 +118,63 @@ export const useGoogleMetrics = () => {
 
       setMetrics(prev => ({ ...prev, isLoading: true }));
 
-      // Sync GA4 and Google Ads in parallel
-      const [analyticsRes, adsRes] = await Promise.all([
-        supabase.functions.invoke('google-analytics-sync', {
+      let gaSuccess = false;
+      let adsSuccess = false;
+
+      // Sync Google Analytics
+      try {
+        const analyticsRes = await supabase.functions.invoke('google-analytics-sync', {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
           body: {},
-        }),
-        supabase.functions.invoke('google-ads-sync', {
+        });
+
+        if (!analyticsRes.error && analyticsRes.data) {
+          setMetrics(prev => ({
+            ...prev,
+            analytics: analyticsRes.data?.totals || null,
+          }));
+          gaSuccess = true;
+        }
+      } catch (gaError) {
+        console.error('Google Analytics sync error:', gaError);
+      }
+
+      // Sync Google Ads (optional - may not be enabled)
+      try {
+        const adsRes = await supabase.functions.invoke('google-ads-sync', {
           headers: {
             Authorization: `Bearer ${session.access_token}`,
           },
           body: {},
-        }),
-      ]);
+        });
 
-      if (analyticsRes.error) throw analyticsRes.error;
-      if (adsRes.error) throw adsRes.error;
+        if (!adsRes.error && adsRes.data) {
+          setMetrics(prev => ({
+            ...prev,
+            ads: adsRes.data?.totals || null,
+          }));
+          adsSuccess = true;
+        }
+      } catch (adsError) {
+        console.error('Google Ads sync error (optional):', adsError);
+      }
 
-      setMetrics(prev => ({
-        ...prev,
-        analytics: analyticsRes.data?.totals || null,
-        ads: adsRes.data?.totals || null,
-        isLoading: false,
-      }));
+      setMetrics(prev => ({ ...prev, isLoading: false }));
 
-      toast({
-        title: "Métricas atualizadas",
-        description: "Dados do Google Analytics e Google Ads sincronizados com sucesso.",
-      });
+      // Show success if at least Google Analytics worked
+      if (gaSuccess) {
+        toast({
+          title: "Métricas atualizadas",
+          description: adsSuccess 
+            ? "Dados do Google Analytics e Google Ads sincronizados com sucesso."
+            : "Dados do Google Analytics sincronizados com sucesso.",
+        });
+        await loadCachedMetrics();
+      } else {
+        throw new Error('Falha ao sincronizar Google Analytics');
+      }
     } catch (error: any) {
       console.error('Error syncing metrics:', error);
       setMetrics(prev => ({ ...prev, isLoading: false }));
