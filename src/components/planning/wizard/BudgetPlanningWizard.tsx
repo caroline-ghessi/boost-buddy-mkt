@@ -119,10 +119,16 @@ export const BudgetPlanningWizard = () => {
 
   const progress = (state.step / 4) * 100;
 
-  const frontsList = Array.from(state.frontAllocations.values()).map((f) => ({
-    ...f,
-    name: fronts.find((front) => front.id === f.id)?.name || f.name,
-  }));
+  const frontsList = fronts.map((front) => {
+    const allocation = state.frontAllocations.get(front.id);
+    return {
+      id: front.id,
+      name: front.name,
+      percentage: allocation?.percentage || 0,
+      amount: allocation?.amount || 0,
+      selected: allocation?.selected || false,
+    };
+  });
 
   return (
     <div className="min-h-screen bg-background py-8 px-4">
