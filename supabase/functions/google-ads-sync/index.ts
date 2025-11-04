@@ -60,6 +60,15 @@ serve(async (req) => {
 
     console.log(`Using Customer ID: ${customerId}, Login Customer ID: ${loginCustomerId || 'none'}`);
 
+    // Log request headers (masking sensitive data)
+    console.log('Google Ads API Request Configuration:', {
+      endpoint: 'v22/googleAds:searchStream',
+      customerId,
+      loginCustomerId: loginCustomerId || customerId,
+      hasDeveloperToken: !!developerToken,
+      hasAccessToken: !!accessToken,
+    });
+
     // Build GAQL query
     const query = `
       SELECT 
@@ -80,7 +89,7 @@ serve(async (req) => {
 
     // Call Google Ads API
     const adsResponse = await fetch(
-      `https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:searchStream`,
+      `https://googleads.googleapis.com/v22/customers/${customerId}/googleAds:searchStream`,
       {
         method: 'POST',
         headers: {
@@ -106,7 +115,15 @@ serve(async (req) => {
     }
 
     const adsData = await adsResponse.json();
-    console.log('Google Ads data received, results:', adsData.length || 0);
+    console.log('Google Ads API Response:', {
+      resultsCount: adsData.length || 0,
+      hasResults: Array.isArray(adsData) && adsData.length > 0,
+      firstResultStructure: adsData.length > 0 ? {
+        hasCampaign: !!adsData[0].campaign,
+        hasMetrics: !!adsData[0].metrics,
+        hasSegments: !!adsData[0].segments,
+      } : null
+    });
 
     // Process and insert metrics
     let totalImpressions = 0;
