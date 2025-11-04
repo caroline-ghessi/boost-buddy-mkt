@@ -352,6 +352,120 @@ export type Database = {
           },
         ]
       }
+      budget_allocations: {
+        Row: {
+          allocated_amount: number
+          budget_plan_id: string
+          business_front_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          percentage: number
+        }
+        Insert: {
+          allocated_amount?: number
+          budget_plan_id: string
+          business_front_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          percentage?: number
+        }
+        Update: {
+          allocated_amount?: number
+          budget_plan_id?: string
+          business_front_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          percentage?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_allocations_budget_plan_id_fkey"
+            columns: ["budget_plan_id"]
+            isOneToOne: false
+            referencedRelation: "budget_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_allocations_business_front_id_fkey"
+            columns: ["business_front_id"]
+            isOneToOne: false
+            referencedRelation: "business_fronts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_plans: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          period_end: string
+          period_start: string
+          status: string
+          total_budget: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          period_end: string
+          period_start: string
+          status?: string
+          total_budget?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          period_end?: string
+          period_start?: string
+          status?: string
+          total_budget?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      business_fronts: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       campaign_assets: {
         Row: {
           approved: boolean | null
@@ -552,6 +666,53 @@ export type Database = {
         }
         Relationships: []
       }
+      geographic_distributions: {
+        Row: {
+          amount: number
+          created_at: string
+          google_daily: number | null
+          google_monthly: number | null
+          id: string
+          meta_daily: number | null
+          meta_monthly: number | null
+          percentage: number
+          platform_distribution_id: string
+          state_code: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          google_daily?: number | null
+          google_monthly?: number | null
+          id?: string
+          meta_daily?: number | null
+          meta_monthly?: number | null
+          percentage?: number
+          platform_distribution_id: string
+          state_code: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          google_daily?: number | null
+          google_monthly?: number | null
+          id?: string
+          meta_daily?: number | null
+          meta_monthly?: number | null
+          percentage?: number
+          platform_distribution_id?: string
+          state_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geographic_distributions_platform_distribution_id_fkey"
+            columns: ["platform_distribution_id"]
+            isOneToOne: false
+            referencedRelation: "platform_distributions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_ads_metrics: {
         Row: {
           campaign_id: string
@@ -749,6 +910,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      platform_distributions: {
+        Row: {
+          budget_allocation_id: string
+          created_at: string
+          daily_amount: number
+          id: string
+          monthly_amount: number
+          percentage: number
+          platform: string
+        }
+        Insert: {
+          budget_allocation_id: string
+          created_at?: string
+          daily_amount?: number
+          id?: string
+          monthly_amount?: number
+          percentage?: number
+          platform: string
+        }
+        Update: {
+          budget_allocation_id?: string
+          created_at?: string
+          daily_amount?: number
+          id?: string
+          monthly_amount?: number
+          percentage?: number
+          platform?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_distributions_budget_allocation_id_fkey"
+            columns: ["budget_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "budget_allocations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

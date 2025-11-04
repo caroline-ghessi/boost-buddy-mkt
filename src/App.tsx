@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import CampaignBuilder from "./pages/CampaignBuilder";
 import CampaignProgress from "./pages/CampaignProgress";
 import CampaignReview from "./pages/CampaignReview";
+import BudgetPlanning from "./pages/BudgetPlanning";
 import CompetitiveIntelligence from "./pages/CompetitiveIntelligence";
 import CompetitorDetail from "./pages/CompetitorDetail";
 import NotFound from "./pages/NotFound";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/team" element={<ProtectedRoute><AppLayout><Team /></AppLayout></ProtectedRoute>} />
             <Route path="/performance" element={<ProtectedRoute><AppLayout><Performance /></AppLayout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>} />
+            <Route path="/planning" element={<ProtectedRoute><AppLayout><BudgetPlanning /></AppLayout></ProtectedRoute>} />
             
             {/* Campaign Routes - SPRINT 5 */}
             <Route path="/campaigns/new" element={<ProtectedRoute><AppLayout><CampaignBuilder /></AppLayout></ProtectedRoute>} />

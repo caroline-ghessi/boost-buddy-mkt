@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MessageSquare, Users, BarChart3, Settings, BookOpen, Rocket, Search, LogOut, User } from "lucide-react";
+import { MessageSquare, Users, BarChart3, Settings, BookOpen, Rocket, Search, LogOut, User, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -11,6 +11,7 @@ const menuItems = [
   { path: "/knowledge", label: "Base de Conhecimento", icon: BookOpen },
   { path: "/team", label: "The Pack", icon: Users },
   { path: "/performance", label: "Performance", icon: BarChart3 },
+  { path: "/planning", label: "Planejamento", icon: Calendar },
   { path: "/competitive-intelligence", label: "Inteligência Competitiva", icon: Search },
   { path: "/settings", label: "Configurações", icon: Settings }
 ];
