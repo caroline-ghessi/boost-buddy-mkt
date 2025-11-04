@@ -24,6 +24,7 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
   const [temperature, setTemperature] = useState(0.7);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -32,8 +33,16 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
       setName(agent.name);
       setRole(agent.role);
       setSystemPrompt("");
+      setPreviewImageUrl(null); // Reset preview
     }
-  }, [agent]);
+    
+    // Cleanup: revogar URL do objeto quando o componente desmontar
+    return () => {
+      if (previewImageUrl) {
+        URL.revokeObjectURL(previewImageUrl);
+      }
+    };
+  }, [agent, previewImageUrl]);
 
   if (!agent) return null;
 
@@ -79,17 +88,20 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
 
     setIsUploading(true);
     try {
-      // TODO: Integrar com Supabase Storage
+      // Criar preview local da imagem
+      const objectUrl = URL.createObjectURL(file);
+      setPreviewImageUrl(objectUrl);
+      
       console.log('Arquivo selecionado:', file.name);
       
       toast({
-        title: "Foto atualizada",
-        description: "A foto do agente foi atualizada com sucesso",
+        title: "Preview atualizado",
+        description: "A foto foi carregada. Clique em 'Salvar' para persistir",
       });
     } catch (error) {
       toast({
-        title: "Erro ao fazer upload",
-        description: "Não foi possível atualizar a foto",
+        title: "Erro ao processar imagem",
+        description: "Não foi possível carregar a imagem",
         variant: "destructive",
       });
     } finally {
@@ -189,10 +201,10 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
               <div>
                 <Label className="text-gray-400 mb-2 block">Foto do Agente</Label>
                 <div className="flex items-center gap-4">
-                  {agent.imageUrl ? (
+                  {(previewImageUrl || agent.imageUrl) ? (
                     <img 
                       className="h-20 w-20 rounded-full object-cover border-2 border-[#A1887F]" 
-                      src={agent.imageUrl} 
+                      src={previewImageUrl || agent.imageUrl} 
                       alt={agent.name}
                     />
                   ) : (
