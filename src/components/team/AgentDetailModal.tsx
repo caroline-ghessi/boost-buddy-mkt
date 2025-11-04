@@ -50,7 +50,12 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
   if (!agent) return null;
 
   const handleSave = async () => {
-    if (!agent || !onSave) return;
+    if (!agent || !onSave) {
+      console.log('❌ handleSave: Missing agent or onSave', { agent: !!agent, onSave: !!onSave });
+      return;
+    }
+    
+    console.log('🔵 handleSave called', { agentId: agent.id, name, role, llmModel, temperature });
     
     setIsSaving(true);
     const updates: Partial<Agent> = {
@@ -64,9 +69,13 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
     // Se houver uma nova foto, adicionar ao update
     if (uploadedImageUrl) {
       updates.image_url = uploadedImageUrl;
+      console.log('🖼️ Including uploaded image:', uploadedImageUrl);
     }
 
+    console.log('💾 Calling onSave with:', { agentId: agent.id, updates });
     const success = await onSave(agent.id, updates);
+    console.log('✅ Save result:', success);
+    
     setIsSaving(false);
     
     if (success) {

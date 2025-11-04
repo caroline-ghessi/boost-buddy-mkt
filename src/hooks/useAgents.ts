@@ -85,6 +85,8 @@ export function useAgents() {
     agentId: string, 
     updates: Partial<Agent>
   ): Promise<boolean> => {
+    console.log('🔧 updateAgent called', { agentId, updates });
+    
     try {
       // Converter specialty para array se necessário (banco espera array)
       const dbUpdates: any = { ...updates };
@@ -92,12 +94,19 @@ export function useAgents() {
         dbUpdates.specialty = [dbUpdates.specialty];
       }
       
+      console.log('📤 Sending to Supabase:', dbUpdates);
+      
       const { error } = await supabase
         .from('agent_configs')
         .update(dbUpdates)
         .eq('id', agentId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase error:', error);
+        throw error;
+      }
+
+      console.log('✅ Supabase update successful');
 
       // Atualizar estado local
       setAgents(prev => 
