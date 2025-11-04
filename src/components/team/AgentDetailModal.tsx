@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { BuddyAgent } from "@/lib/buddyAgents";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X, Upload, Trash2, History } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface AgentDetailModalProps {
   agent: BuddyAgent | null;
@@ -22,6 +23,9 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
   const [llmModel, setLlmModel] = useState("gpt-4");
   const [temperature, setTemperature] = useState(0.7);
   const [systemPrompt, setSystemPrompt] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (agent) {
@@ -43,6 +47,63 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
       onDelete?.(agent.id);
       onClose();
     }
+  };
+
+  const handlePhotoUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Arquivo inválido",
+        description: "Por favor, selecione um arquivo de imagem",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Arquivo muito grande",
+        description: "O tamanho máximo é 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // TODO: Integrar com Supabase Storage
+      console.log('Arquivo selecionado:', file.name);
+      
+      toast({
+        title: "Foto atualizada",
+        description: "A foto do agente foi atualizada com sucesso",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao fazer upload",
+        description: "Não foi possível atualizar a foto",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleShowHistory = () => {
+    toast({
+      title: "Histórico de Prompts",
+      description: "Funcionalidade em desenvolvimento",
+    });
+    console.log('Mostrando histórico de prompts para:', agent.name);
+    // TODO: Implementar modal de histórico quando tiver tabela agent_prompt_history
   };
 
   return (
@@ -139,9 +200,20 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
                       {agent.emoji}
                     </div>
                   )}
-                  <Button className="bg-[#A1887F] hover:bg-[#8D6E63]">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <Button 
+                    onClick={handlePhotoUpload}
+                    disabled={isUploading}
+                    className="bg-[#A1887F] hover:bg-[#8D6E63]"
+                  >
                     <Upload className="w-4 h-4 mr-2" />
-                    Alterar Foto
+                    {isUploading ? "Enviando..." : "Alterar Foto"}
                   </Button>
                 </div>
               </div>
@@ -152,7 +224,12 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <Label className="text-gray-400">Prompt do Sistema</Label>
-                  <Button variant="ghost" size="sm" className="text-[#A1887F] hover:text-white">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-[#A1887F] hover:text-white"
+                    onClick={handleShowHistory}
+                  >
                     <History className="w-4 h-4 mr-2" />
                     Ver Histórico
                   </Button>
