@@ -125,6 +125,12 @@ serve(async (req) => {
       } : null
     });
 
+    // Check if response contains error
+    if (Array.isArray(adsData) && adsData.length > 0 && adsData[0].error) {
+      console.error('Google Ads API returned error in response:', adsData[0].error);
+      throw new Error(`Google Ads API error: ${adsData[0].error.message || 'Unknown error'}`);
+    }
+
     // Process and insert metrics
     let totalImpressions = 0;
     let totalClicks = 0;
@@ -132,12 +138,22 @@ serve(async (req) => {
     let totalConversions = 0;
 
     for (const result of adsData) {
+      // Validate result structure
+      if (!result.campaign || !result.segments || !result.metrics) {
+        console.warn('Skipping invalid result - missing required fields:', {
+          hasCampaign: !!result.campaign,
+          hasSegments: !!result.segments,
+          hasMetrics: !!result.metrics,
+        });
+        continue;
+      }
+
       const campaign = result.campaign;
       const segments = result.segments;
       const metrics = result.metrics;
 
       // Convert cost from micros to currency
-      const cost = parseFloat(metrics.costMicros) / 1_000_000;
+      const cost = parseFloat(metrics.costMicros || 0) / 1_000_000;
       const cpc = parseFloat(metrics.averageCpc) / 1_000_000;
       const conversions = parseFloat(metrics.conversions);
       const clicks = parseInt(metrics.clicks);
