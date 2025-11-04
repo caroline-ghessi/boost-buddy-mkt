@@ -117,15 +117,7 @@ serve(async (req) => {
     }
 
     const adsData = await adsResponse.json();
-    console.log('Google Ads API Response:', {
-      resultsCount: adsData.length || 0,
-      hasResults: Array.isArray(adsData) && adsData.length > 0,
-      firstResultStructure: adsData.length > 0 ? {
-        hasCampaign: !!adsData[0].campaign,
-        hasMetrics: !!adsData[0].metrics,
-        hasSegments: !!adsData[0].segments,
-      } : null
-    });
+    console.log('Google Ads API Full Response:', JSON.stringify(adsData, null, 2));
 
     // Check if response contains error
     if (Array.isArray(adsData) && adsData.length > 0 && adsData[0].error) {
@@ -138,21 +130,32 @@ serve(async (req) => {
     let totalClicks = 0;
     let totalCost = 0;
     let totalConversions = 0;
+    let processedResults = 0;
 
-    for (const result of adsData) {
-      // Validate result structure
-      if (!result.campaign || !result.segments || !result.metrics) {
-        console.warn('Skipping invalid result - missing required fields:', {
-          hasCampaign: !!result.campaign,
-          hasSegments: !!result.segments,
-          hasMetrics: !!result.metrics,
-        });
+    // Google Ads API v22 searchStream returns array of batches, each with a results array
+    for (const batch of adsData) {
+      if (!batch.results || !Array.isArray(batch.results)) {
+        console.warn('Batch missing results array:', { hasBatch: !!batch, hasResults: !!batch?.results });
         continue;
       }
 
-      const campaign = result.campaign;
-      const segments = result.segments;
-      const metrics = result.metrics;
+      console.log(`Processing batch with ${batch.results.length} results`);
+
+      for (const result of batch.results) {
+        // Validate result structure
+        if (!result.campaign || !result.segments || !result.metrics) {
+          console.warn('Skipping invalid result - missing required fields:', {
+            hasCampaign: !!result.campaign,
+            hasSegments: !!result.segments,
+            hasMetrics: !!result.metrics,
+          });
+          continue;
+        }
+
+        const campaign = result.campaign;
+        const segments = result.segments;
+        const metrics = result.metrics;
+        processedResults++;
 
       // Convert cost from micros to currency (v22 uses snake_case)
       const cost = parseFloat(metrics.cost_micros || 0) / 1_000_000;
@@ -191,17 +194,18 @@ serve(async (req) => {
           onConflict: 'user_id,campaign_id,date'
         });
 
-      totalImpressions += parseInt(metrics.impressions);
-      totalClicks += clicks;
-      totalCost += cost;
-      totalConversions += conversions;
+        totalImpressions += parseInt(metrics.impressions);
+        totalClicks += clicks;
+        totalCost += cost;
+        totalConversions += conversions;
+      }
     }
 
     const avgCtr = totalImpressions > 0 
       ? parseFloat((totalClicks / totalImpressions * 100).toFixed(2))
       : 0;
 
-    console.log('Google Ads sync completed successfully');
+    console.log(`Google Ads sync completed successfully. Processed ${processedResults} campaign results.`);
 
     return new Response(
       JSON.stringify({
@@ -214,7 +218,7 @@ serve(async (req) => {
           conversions: totalConversions,
           ctr: avgCtr,
         },
-        campaigns: adsData.length,
+        resultsProcessed: processedResults,
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
