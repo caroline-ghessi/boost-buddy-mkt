@@ -690,6 +690,66 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_ads_metrics: {
+        Row: {
+          campaign_id: string
+          campaign_name: string
+          clicks: number
+          conversion_rate: number | null
+          conversions: number
+          cost: number
+          cost_per_conversion: number | null
+          cpc: number | null
+          cpm: number | null
+          created_at: string
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number
+          metadata: Json | null
+          reach: number
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          campaign_name: string
+          clicks?: number
+          conversion_rate?: number | null
+          conversions?: number
+          cost?: number
+          cost_per_conversion?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number
+          metadata?: Json | null
+          reach?: number
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          campaign_name?: string
+          clicks?: number
+          conversion_rate?: number | null
+          conversions?: number
+          cost?: number
+          cost_per_conversion?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number
+          metadata?: Json | null
+          reach?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

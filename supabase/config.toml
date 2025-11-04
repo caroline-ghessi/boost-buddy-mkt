@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.google-ads-sync]
 verify_jwt = true
 
+[functions.meta-ads-sync]
+verify_jwt = true
+
 [functions.cmo-chat]
 verify_jwt = false
 

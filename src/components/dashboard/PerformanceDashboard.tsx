@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, DollarSign, Target, Users, Zap, RefreshCw } from "lucide-react";
 import { useGoogleMetrics } from "@/hooks/useGoogleMetrics";
+import { useMetaMetrics } from "@/hooks/useMetaMetrics";
 import { useEffect } from "react";
 
 interface MetricCard {
@@ -41,6 +42,7 @@ const recentCampaigns = [
 
 const PerformanceDashboard = () => {
   const { analytics, ads, isConnected, isLoading, connectGoogle, syncMetrics } = useGoogleMetrics();
+  const { ads: metaAds, isConnected: metaConnected, isLoading: metaLoading, syncMetrics: syncMetaMetrics } = useMetaMetrics();
 
   // Check for OAuth callback success/error
   useEffect(() => {
@@ -138,8 +140,13 @@ const PerformanceDashboard = () => {
         </div>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Google Metrics Grid */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <span className="text-xl">📊</span>
+          Google Analytics & Ads
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
           const TrendIcon = metric.trend === "up" ? TrendingUp : TrendingDown;
@@ -164,7 +171,106 @@ const PerformanceDashboard = () => {
             </Card>
           );
         })}
+        </div>
       </div>
+
+      {/* Meta Ads Metrics Grid */}
+      {metaConnected && metaAds && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <span className="text-xl">📱</span>
+              Meta Ads (Facebook/Instagram)
+            </h3>
+            <Button onClick={() => syncMetaMetrics()} variant="outline" size="sm" disabled={metaLoading}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${metaLoading ? 'animate-spin' : ''}`} />
+              Sincronizar Meta
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="glass-panel p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Impressões (Meta)</p>
+                  <h3 className="text-3xl font-bold">{metaAds.impressions.toLocaleString('pt-BR')}</h3>
+                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
+                    <span>Últimos 30 dias</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                  <Users className="w-6 h-6 text-primary" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="glass-panel p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Alcance (Reach)</p>
+                  <h3 className="text-3xl font-bold">{metaAds.reach.toLocaleString('pt-BR')}</h3>
+                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
+                    <span>Pessoas únicas</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                  <Target className="w-6 h-6 text-primary" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="glass-panel p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Cliques (Meta)</p>
+                  <h3 className="text-3xl font-bold">{metaAds.clicks.toLocaleString('pt-BR')}</h3>
+                  <div className="flex items-center gap-1 mt-2 text-sm text-green-500">
+                    <TrendingUp className="w-4 h-4" />
+                    <span>CTR: {metaAds.ctr.toFixed(2)}%</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                  <Target className="w-6 h-6 text-primary" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="glass-panel p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Custo Total (Meta)</p>
+                  <h3 className="text-3xl font-bold">R$ {metaAds.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
+                    <span>CPM: R$ {metaAds.cpm.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-primary" />
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {!metaConnected && (
+        <Card className="glass-panel p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+                <span className="text-xl">📱</span>
+                Meta Ads (Facebook/Instagram)
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Configure suas credenciais da Meta e sincronize para ver métricas
+              </p>
+            </div>
+            <Button onClick={() => syncMetaMetrics()} variant="outline">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Sincronizar Meta Ads
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Recent Campaigns */}
       <Card className="glass-panel p-6">
