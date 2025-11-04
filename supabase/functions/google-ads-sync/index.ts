@@ -69,21 +69,23 @@ serve(async (req) => {
       hasAccessToken: !!accessToken,
     });
 
-    // Build GAQL query
+    // Build GAQL query (using camelCase for v22 API)
     const query = `
       SELECT 
         campaign.id,
         campaign.name,
+        campaign.status,
         segments.date,
         metrics.impressions,
         metrics.clicks,
         metrics.ctr,
-        metrics.cost_micros,
-        metrics.average_cpc,
+        metrics.costMicros,
+        metrics.averageCpc,
         metrics.conversions,
-        metrics.conversions_value
+        metrics.conversionsValue
       FROM campaign
       WHERE segments.date BETWEEN '${start}' AND '${end}'
+        AND campaign.status = 'ENABLED'
       ORDER BY segments.date DESC
     `;
 
@@ -152,9 +154,9 @@ serve(async (req) => {
       const segments = result.segments;
       const metrics = result.metrics;
 
-      // Convert cost from micros to currency
+      // Convert cost from micros to currency (using camelCase for v22)
       const cost = parseFloat(metrics.costMicros || 0) / 1_000_000;
-      const cpc = parseFloat(metrics.averageCpc) / 1_000_000;
+      const cpc = parseFloat(metrics.averageCpc || 0) / 1_000_000;
       const conversions = parseFloat(metrics.conversions);
       const clicks = parseInt(metrics.clicks);
       
