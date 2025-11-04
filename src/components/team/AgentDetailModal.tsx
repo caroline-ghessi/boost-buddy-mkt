@@ -33,16 +33,13 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
       setName(agent.name);
       setRole(agent.role);
       setSystemPrompt("");
-      setPreviewImageUrl(null); // Reset preview
-    }
-    
-    // Cleanup: revogar URL do objeto quando o componente desmontar
-    return () => {
+      // Revogar URL antiga antes de resetar
       if (previewImageUrl) {
         URL.revokeObjectURL(previewImageUrl);
       }
-    };
-  }, [agent, previewImageUrl]);
+      setPreviewImageUrl(null);
+    }
+  }, [agent]);
 
   if (!agent) return null;
 
@@ -124,10 +121,10 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
         {/* Header */}
         <DialogHeader className="flex flex-row items-center justify-between p-6 border-b border-gray-700/50">
           <div className="flex items-center gap-4">
-            {agent.imageUrl ? (
+            {(previewImageUrl || agent.imageUrl) ? (
               <img 
                 className="h-16 w-16 rounded-full object-cover border-2 border-[#A1887F]" 
-                src={agent.imageUrl} 
+                src={previewImageUrl || agent.imageUrl} 
                 alt={agent.name}
               />
             ) : (
