@@ -11,6 +11,7 @@ export interface BuddyAgent {
   status: "active" | "idle" | "busy";
   yearsExperience: number;
   team: string;
+  imageUrl?: string;
 }
 
 export const buddyAgents: BuddyAgent[] = [

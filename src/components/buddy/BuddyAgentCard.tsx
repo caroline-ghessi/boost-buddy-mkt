@@ -1,71 +1,56 @@
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { BuddyAgent } from "@/lib/buddyAgents";
 
 interface BuddyAgentCardProps {
   agent: BuddyAgent;
+  imageUrl?: string;
   onClick?: () => void;
 }
 
-export function BuddyAgentCard({ agent, onClick }: BuddyAgentCardProps) {
+export function BuddyAgentCard({ agent, imageUrl, onClick }: BuddyAgentCardProps) {
   const statusColors = {
-    active: "bg-green-500",
-    idle: "bg-yellow-500",
-    busy: "bg-blue-500",
+    active: "bg-green-400",
+    idle: "bg-green-400",
+    busy: "bg-yellow-400",
   };
 
   const statusLabels = {
-    active: "Ativo",
-    idle: "Disponível",
-    busy: "Trabalhando",
+    active: "Idle",
+    idle: "Idle",
+    busy: "Working...",
   };
 
   return (
-    <Card
-      className="p-4 hover:scale-105 transition-all cursor-pointer border-2 border-border hover:border-primary shadow-sm hover:shadow-md bg-card"
-      onClick={onClick}
-    >
-      {/* Avatar with emoji */}
-      <div className="text-center mb-3">
-        <div className="text-5xl mb-2 inline-block animate-bounce-in">
-          {agent.emoji}
-        </div>
+    <div className="agent-card relative rounded-lg overflow-hidden group cursor-pointer" onClick={onClick}>
+      {/* Background Image or Emoji */}
+      <div className="relative w-full h-48 bg-[#2a2a2a]">
+        {imageUrl || agent.imageUrl ? (
+          <img 
+            src={imageUrl || agent.imageUrl}
+            alt={`${agent.name} - ${agent.breed}`}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-6xl">
+            {agent.emoji}
+          </div>
+        )}
       </div>
 
-      {/* Breed badge */}
-      <div className="flex justify-center mb-3">
-        <Badge
-          variant="outline"
-          className="text-xs font-semibold bg-primary/10 text-primary border-primary/30"
-        >
-          {agent.breed}
-        </Badge>
-      </div>
-
-      {/* Name and role */}
-      <div className="text-center mb-3">
-        <h3 className="font-bold text-sm text-foreground mb-1">{agent.name}</h3>
-        <p className="text-xs text-muted-foreground">{agent.role}</p>
-      </div>
-
-      {/* Breed trait */}
-      <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-lg px-3 py-2 mb-3">
-        <p className="text-xs text-center font-medium text-foreground flex items-center justify-center gap-1">
-          <span>⭐</span>
-          {agent.breedTrait}
+      {/* Hover Overlay */}
+      <div className="agent-card-overlay">
+        <h4 className="font-bold text-white text-lg">{agent.name}</h4>
+        <p className="text-xs text-gray-300">{agent.role}</p>
+        <p className="text-xs text-gray-400 mt-1">🐕 {agent.breed}</p>
+        <p className="text-xs mt-2 text-green-400 font-semibold flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${statusColors[agent.status]}`} />
+          {statusLabels[agent.status]}
         </p>
       </div>
 
-      {/* Status and experience */}
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${statusColors[agent.status]}`} />
-          <span className="text-muted-foreground">{statusLabels[agent.status]}</span>
-        </div>
-        <span className="text-muted-foreground">
-          🦴 {agent.yearsExperience} anos
-        </span>
+      {/* Default Status Bar (hidden on hover) */}
+      <div className="absolute bottom-0 left-0 right-0 bg-black/50 p-2 text-center transition-opacity duration-300 group-hover:opacity-0">
+        <p className="font-semibold text-white text-sm">{agent.name}</p>
       </div>
-    </Card>
+    </div>
   );
 }

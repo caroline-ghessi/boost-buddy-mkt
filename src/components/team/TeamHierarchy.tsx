@@ -22,7 +22,6 @@ const TeamHierarchy = () => {
   useEffect(() => {
     fetchAgentStatuses();
 
-    // Subscribe to real-time task updates
     const channel = supabase
       .channel('team-hierarchy-tasks')
       .on(
@@ -88,9 +87,9 @@ const TeamHierarchy = () => {
 
   const getStatusBadge = (status: 'available' | 'busy' | 'offline') => {
     const colors = {
-      available: 'bg-green-500/10 text-green-600',
-      busy: 'bg-yellow-500/10 text-yellow-600',
-      offline: 'bg-gray-500/10 text-gray-600',
+      available: 'bg-green-500/10 text-green-400',
+      busy: 'bg-yellow-500/10 text-yellow-400',
+      offline: 'bg-gray-500/10 text-gray-400',
     };
     const labels = {
       available: 'Disponível',
@@ -108,13 +107,8 @@ const TeamHierarchy = () => {
         <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
           {getStatusBadge(status.status)}
           {status.pending_tasks > 0 && (
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs bg-[#2a2a2a] border-gray-600">
               {status.pending_tasks} pendente{status.pending_tasks > 1 ? 's' : ''}
-            </Badge>
-          )}
-          {status.active_tasks > 0 && (
-            <Badge className="bg-blue-500/10 text-blue-600 text-xs">
-              {status.active_tasks} em andamento
             </Badge>
           )}
         </div>
@@ -122,11 +116,9 @@ const TeamHierarchy = () => {
     );
   };
 
-  // Group level 2 by team
   const intelligenceTeam = getAgentsByTeam("Intelligence");
   const strategyTeam = getAgentsByTeam("Strategy");
 
-  // Group level 3 by team
   const contentTeam = level3.filter(a => a.team === "Content");
   const creativeTeam = level3.filter(a => a.team === "Creative");
   const paidMediaTeam = level3.filter(a => a.team === "Paid Media");
@@ -138,33 +130,33 @@ const TeamHierarchy = () => {
       <div className="text-center">
         <div className="flex items-center justify-center gap-3 mb-4">
           <span className="text-5xl animate-bounce-in">🐕</span>
-          <h2 className="text-4xl font-bold text-gradient">The Pack</h2>
+          <h2 className="text-4xl font-bold text-white">The Pack</h2>
           <span className="text-5xl animate-bounce-in">🐾</span>
         </div>
-        <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
-          Conheça os <strong className="text-primary">17 especialistas</strong> que formam o melhor time de marketing. 
+        <p className="text-lg text-gray-400 max-w-3xl mx-auto">
+          Conheça os <strong className="text-[#A1887F]">17 especialistas</strong> que formam o melhor time de marketing. 
           Cada um com sua raça, personalidade e superpoder único!
         </p>
       </div>
 
       {/* Fun Facts Card */}
-      <Card className="bg-gradient-to-r from-accent/10 to-primary/10 p-6 border-2 border-primary/20">
-        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+      <Card className="bg-[#1e1e1e] p-6 border-2 border-gray-700/50">
+        <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-white">
           <span>🦴</span>
           Fun Facts sobre The Pack
         </h3>
         <div className="grid grid-cols-3 gap-6">
           <div className="text-center">
-            <div className="text-4xl font-bold text-primary mb-1">17</div>
-            <div className="text-sm text-muted-foreground font-medium">Especialistas</div>
+            <div className="text-4xl font-bold text-[#A1887F] mb-1">17</div>
+            <div className="text-sm text-gray-400 font-medium">Especialistas</div>
           </div>
           <div className="text-center">
-            <div className="text-4xl font-bold text-secondary mb-1">15</div>
-            <div className="text-sm text-muted-foreground font-medium">Raças diferentes</div>
+            <div className="text-4xl font-bold text-[#8D6E63] mb-1">15</div>
+            <div className="text-sm text-gray-400 font-medium">Raças diferentes</div>
           </div>
           <div className="text-center">
-            <div className="text-4xl font-bold text-accent mb-1">∞</div>
-            <div className="text-sm text-muted-foreground font-medium">Lealdade e dedicação</div>
+            <div className="text-4xl font-bold text-[#A1887F] mb-1">∞</div>
+            <div className="text-sm text-gray-400 font-medium">Lealdade e dedicação</div>
           </div>
         </div>
       </Card>
@@ -174,10 +166,10 @@ const TeamHierarchy = () => {
         {/* Level 1 - CMO */}
         <div>
           <div className="flex items-center gap-3 mb-6 justify-center">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-white font-bold text-lg">
               1
             </div>
-            <h3 className="text-2xl font-bold">Nível 1 - Liderança</h3>
+            <h3 className="text-2xl font-bold text-white">Nível 1 - Liderança</h3>
           </div>
           
           <div className="flex justify-center">
@@ -185,7 +177,7 @@ const TeamHierarchy = () => {
               {level1.map((agent) => (
                 <Card
                   key={agent.id}
-                  className="bg-gradient-to-br from-primary to-secondary text-white p-8 shadow-xl border-0 card-paw relative"
+                  className="bg-gradient-to-br from-[#A1887F] to-[#8D6E63] text-white p-8 border-0 relative"
                 >
                   <div className="absolute top-2 right-2">
                     {getStatusBadge(getAgentStatus(agent.id).status)}
@@ -209,22 +201,21 @@ const TeamHierarchy = () => {
 
         {/* Connector */}
         <div className="flex justify-center">
-          <div className="w-1 h-12 bg-gradient-to-b from-primary to-primary/20 rounded-full" />
+          <div className="w-1 h-12 bg-gradient-to-b from-[#A1887F] to-[#A1887F]/20 rounded-full" />
         </div>
 
         {/* Level 2 - Specialists */}
         <div>
           <div className="flex items-center gap-3 mb-6 justify-center">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-secondary to-accent flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#8D6E63] to-[#A1887F] flex items-center justify-center text-white font-bold text-lg">
               2
             </div>
-            <h3 className="text-2xl font-bold">Nível 2 - Especialistas</h3>
+            <h3 className="text-2xl font-bold text-white">Nível 2 - Especialistas</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Intelligence Team */}
-            <Card className="p-6 border-2 border-primary/20 bg-gradient-to-br from-card to-primary/5">
-              <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Card className="p-6 border-2 border-gray-700/50 bg-[#1e1e1e]">
+              <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
                 <span className="text-2xl">🧠</span>
                 Intelligence Team
               </h4>
@@ -233,9 +224,8 @@ const TeamHierarchy = () => {
               </div>
             </Card>
 
-            {/* Strategy Team */}
-            <Card className="p-6 border-2 border-primary/20 bg-gradient-to-br from-card to-secondary/5">
-              <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Card className="p-6 border-2 border-gray-700/50 bg-[#1e1e1e]">
+              <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
                 <span className="text-2xl">🎯</span>
                 Strategy Team
               </h4>
@@ -248,22 +238,21 @@ const TeamHierarchy = () => {
 
         {/* Connector */}
         <div className="flex justify-center">
-          <div className="w-1 h-12 bg-gradient-to-b from-secondary to-secondary/20 rounded-full" />
+          <div className="w-1 h-12 bg-gradient-to-b from-[#8D6E63] to-[#8D6E63]/20 rounded-full" />
         </div>
 
         {/* Level 3 - Executors */}
         <div>
           <div className="flex items-center gap-3 mb-6 justify-center">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-accent to-primary flex items-center justify-center text-white font-bold text-lg shadow-lg">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-white font-bold text-lg">
               3
             </div>
-            <h3 className="text-2xl font-bold">Nível 3 - Executores</h3>
+            <h3 className="text-2xl font-bold text-white">Nível 3 - Executores</h3>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Content Team */}
-            <Card className="p-6 border-2 border-primary/20 bg-gradient-to-br from-card to-accent/5">
-              <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Card className="p-6 border-2 border-gray-700/50 bg-[#1e1e1e]">
+              <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
                 <span className="text-2xl">✍️</span>
                 Content Team
               </h4>
@@ -272,9 +261,8 @@ const TeamHierarchy = () => {
               </div>
             </Card>
 
-            {/* Creative Team */}
-            <Card className="p-6 border-2 border-primary/20 bg-gradient-to-br from-card to-primary/5">
-              <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Card className="p-6 border-2 border-gray-700/50 bg-[#1e1e1e]">
+              <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
                 <span className="text-2xl">🎨</span>
                 Creative Team
               </h4>
@@ -283,9 +271,8 @@ const TeamHierarchy = () => {
               </div>
             </Card>
 
-            {/* Paid Media Team */}
-            <Card className="p-6 border-2 border-primary/20 bg-gradient-to-br from-card to-accent/5">
-              <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Card className="p-6 border-2 border-gray-700/50 bg-[#1e1e1e]">
+              <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
                 <span className="text-2xl">📱</span>
                 Paid Media Team
               </h4>
@@ -294,9 +281,8 @@ const TeamHierarchy = () => {
               </div>
             </Card>
 
-            {/* Quality Team */}
-            <Card className="p-6 border-2 border-primary/20 bg-gradient-to-br from-card to-secondary/5">
-              <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Card className="p-6 border-2 border-gray-700/50 bg-[#1e1e1e]">
+              <h4 className="text-lg font-bold mb-4 flex items-center gap-2 text-white">
                 <span className="text-2xl">✅</span>
                 Quality Team
               </h4>
@@ -309,7 +295,7 @@ const TeamHierarchy = () => {
       </div>
 
       {/* Loyalty Message */}
-      <Card className="bg-gradient-to-r from-primary to-secondary text-white p-8 text-center border-0 shadow-xl">
+      <Card className="bg-gradient-to-r from-[#A1887F] to-[#8D6E63] text-white p-8 text-center border-0">
         <div className="text-5xl mb-4">🐕💙</div>
         <h3 className="text-2xl font-bold mb-2">
           Loyalty. Strategy. Results.
