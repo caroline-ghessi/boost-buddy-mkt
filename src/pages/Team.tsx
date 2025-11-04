@@ -2,26 +2,29 @@ import { useState } from "react";
 import { PackStatsCards } from "@/components/team/PackStatsCards";
 import { AgentCard } from "@/components/team/AgentCard";
 import { AgentDetailModal } from "@/components/team/AgentDetailModal";
-import { buddyAgents, BuddyAgent } from "@/lib/buddyAgents";
+import { useAgents, Agent } from "@/hooks/useAgents";
 import { Button } from "@/components/ui/button";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, Loader2 } from "lucide-react";
 
 export default function Team() {
-  const [selectedAgent, setSelectedAgent] = useState<BuddyAgent | null>(null);
+  const { agents, loading, updateAgent, uploadAgentPhoto, deleteAgent } = useAgents();
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Estatísticas (podem vir de hooks depois)
+  // Estatísticas
   const stats = {
-    totalAgents: buddyAgents.length,
-    activeAgents: buddyAgents.filter(a => a.status === 'active' || a.status === 'busy').length,
+    totalAgents: agents.length,
+    activeAgents: agents.filter(a => a.status === 'active' || a.status === 'busy').length,
     tasksToday: 23,
     uptime: "99.2%",
   };
 
   // Task counts simulados (podem vir do banco depois)
-  const taskCounts = [23, 12, 8, 15, 18, 9, 11, 0];
+  const taskCounts = Array(agents.length).fill(0).map((_, i) => 
+    [23, 12, 8, 15, 18, 9, 11, 0][i] || Math.floor(Math.random() * 20)
+  );
 
-  const handleAgentClick = (agent: BuddyAgent) => {
+  const handleAgentClick = (agent: Agent) => {
     setSelectedAgent(agent);
     setIsModalOpen(true);
   };
@@ -33,6 +36,14 @@ export default function Team() {
   const handleBackup = () => {
     console.log("Exporting backup");
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-[#A1887F]" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -60,14 +71,28 @@ export default function Team() {
 
       {/* Agents Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {buddyAgents.map((agent, index) => (
+        {agents.map((agent, index) => (
           <AgentCard
             key={agent.id}
-            agent={agent}
+            agent={{
+              id: agent.agent_id,
+              name: agent.name,
+              role: agent.role,
+              level: agent.level === 'level_1' ? 1 : agent.level === 'level_2' ? 2 : 3,
+              specialty: agent.specialty,
+              emoji: agent.emoji,
+              breed: agent.breed,
+              breedTrait: agent.breed_trait,
+              color: '#A1887F',
+              status: (agent.status as any) || 'idle',
+              yearsExperience: agent.years_experience || 0,
+              team: agent.team,
+              imageUrl: agent.image_url,
+            }}
             tasksCount={taskCounts[index] || 0}
-            llmModel={agent.id === 'cmo' ? 'GPT-4' : index === 2 ? 'Claude 3' : index === 5 ? 'DALL-E 3' : 'GPT-4'}
-            temperature={0.3 + (index * 0.1)}
-            isLeader={agent.id === 'cmo'}
+            llmModel={agent.llm_model || 'GPT-4'}
+            temperature={agent.temperature || 0.7}
+            isLeader={agent.agent_id === 'cmo'}
             onClick={() => handleAgentClick(agent)}
           />
         ))}
@@ -81,11 +106,14 @@ export default function Team() {
           setIsModalOpen(false);
           setSelectedAgent(null);
         }}
-        onSave={(agent) => {
-          console.log("Saved agent:", agent);
-        }}
-        onDelete={(agentId) => {
-          console.log("Deleting agent:", agentId);
+        onSave={updateAgent}
+        onUploadPhoto={uploadAgentPhoto}
+        onDelete={async (agentId) => {
+          const success = await deleteAgent(agentId);
+          if (success) {
+            setIsModalOpen(false);
+            setSelectedAgent(null);
+          }
         }}
       />
     </div>

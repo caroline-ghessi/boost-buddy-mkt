@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { BuddyAgent } from "@/lib/buddyAgents";
+import { Agent } from "@/hooks/useAgents";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,21 +10,24 @@ import { X, Upload, Trash2, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AgentDetailModalProps {
-  agent: BuddyAgent | null;
+  agent: Agent | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave?: (agent: BuddyAgent) => void;
-  onDelete?: (agentId: string) => void;
+  onSave?: (agentId: string, updates: Partial<Agent>) => Promise<boolean>;
+  onUploadPhoto?: (file: File, agentId: string) => Promise<string | null>;
+  onDelete?: (agentId: string) => Promise<void>;
 }
 
-export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: AgentDetailModalProps) {
+export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto, onDelete }: AgentDetailModalProps) {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [llmModel, setLlmModel] = useState("gpt-4");
   const [temperature, setTemperature] = useState(0.7);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -32,26 +35,50 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
     if (agent) {
       setName(agent.name);
       setRole(agent.role);
-      setSystemPrompt("");
+      setLlmModel(agent.llm_model || "gpt-4");
+      setTemperature(agent.temperature || 0.7);
+      setSystemPrompt(agent.system_prompt || "");
       // Revogar URL antiga antes de resetar
       if (previewImageUrl) {
         URL.revokeObjectURL(previewImageUrl);
       }
       setPreviewImageUrl(null);
+      setUploadedImageUrl(null);
     }
   }, [agent]);
 
   if (!agent) return null;
 
-  const handleSave = () => {
-    console.log("Saving agent:", { name, role, llmModel, temperature, systemPrompt });
-    onClose();
+  const handleSave = async () => {
+    if (!agent || !onSave) return;
+    
+    setIsSaving(true);
+    const updates: Partial<Agent> = {
+      name,
+      role,
+      llm_model: llmModel,
+      temperature,
+      system_prompt: systemPrompt,
+    };
+
+    // Se houver uma nova foto, adicionar ao update
+    if (uploadedImageUrl) {
+      updates.image_url = uploadedImageUrl;
+    }
+
+    const success = await onSave(agent.id, updates);
+    setIsSaving(false);
+    
+    if (success) {
+      onClose();
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    if (!agent || !onDelete) return;
+    
     if (window.confirm(`Tem certeza que deseja deletar o agente ${agent.name}?`)) {
-      onDelete?.(agent.id);
-      onClose();
+      await onDelete(agent.id);
     }
   };
 
@@ -61,7 +88,7 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !agent || !onUploadPhoto) return;
 
     // Validar tipo de arquivo
     if (!file.type.startsWith('image/')) {
@@ -85,16 +112,20 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
 
     setIsUploading(true);
     try {
-      // Criar preview local da imagem
+      // Criar preview local imediato
       const objectUrl = URL.createObjectURL(file);
       setPreviewImageUrl(objectUrl);
       
-      console.log('Arquivo selecionado:', file.name);
+      // Upload para Supabase Storage
+      const publicUrl = await onUploadPhoto(file, agent.id);
       
-      toast({
-        title: "Preview atualizado",
-        description: "A foto foi carregada. Clique em 'Salvar' para persistir",
-      });
+      if (publicUrl) {
+        setUploadedImageUrl(publicUrl);
+        toast({
+          title: "Foto carregada",
+          description: "Clique em 'Salvar Alterações' para aplicar",
+        });
+      }
     } catch (error) {
       toast({
         title: "Erro ao processar imagem",
@@ -121,10 +152,10 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
         {/* Header */}
         <DialogHeader className="flex flex-row items-center justify-between p-6 border-b border-gray-700/50">
           <div className="flex items-center gap-4">
-            {(previewImageUrl || agent.imageUrl) ? (
+            {(previewImageUrl || agent.image_url) ? (
               <img 
                 className="h-16 w-16 rounded-full object-cover border-2 border-[#A1887F]" 
-                src={previewImageUrl || agent.imageUrl} 
+                src={previewImageUrl || agent.image_url} 
                 alt={agent.name}
               />
             ) : (
@@ -198,10 +229,10 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
               <div>
                 <Label className="text-gray-400 mb-2 block">Foto do Agente</Label>
                 <div className="flex items-center gap-4">
-                  {(previewImageUrl || agent.imageUrl) ? (
+                  {(previewImageUrl || agent.image_url) ? (
                     <img 
                       className="h-20 w-20 rounded-full object-cover border-2 border-[#A1887F]" 
-                      src={previewImageUrl || agent.imageUrl} 
+                      src={previewImageUrl || agent.image_url} 
                       alt={agent.name}
                     />
                   ) : (
@@ -260,11 +291,11 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Trait:</span>
-                    <span className="text-white">{agent.breedTrait}</span>
+                    <span className="text-white">{agent.breed_trait}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Experiência:</span>
-                    <span className="text-white">{agent.yearsExperience} anos</span>
+                    <span className="text-white">{agent.years_experience || 0} anos</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Time:</span>
@@ -285,11 +316,15 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onDelete }: A
               Deletar Agente
             </Button>
             <div className="flex gap-3">
-              <Button variant="outline" onClick={onClose}>
+              <Button variant="outline" onClick={onClose} disabled={isSaving}>
                 Cancelar
               </Button>
-              <Button className="bg-[#A1887F] hover:bg-[#8D6E63]" onClick={handleSave}>
-                Salvar Alterações
+              <Button 
+                className="bg-[#A1887F] hover:bg-[#8D6E63]" 
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? "Salvando..." : "Salvar Alterações"}
               </Button>
             </div>
           </div>
