@@ -146,6 +146,25 @@ All colors MUST be HSL.
     border-radius: 50%;
     cursor: pointer;
   }
+
+  /* Metric cards para analytics */
+  .metric-card {
+    background: linear-gradient(135deg, #2a2a2a 0%, #1e1e1e 100%);
+    border: 1px solid rgba(161, 136, 127, 0.2);
+    transition: all 0.3s ease;
+  }
+
+  .metric-card:hover {
+    border-color: #A1887F;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Insight bubbles */
+  .insight-bubble {
+    background-color: #2a2a2a;
+    border-left: 3px solid #A1887F;
+  }
 }
 
 @keyframes float {

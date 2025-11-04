@@ -1,369 +1,159 @@
-import { Card } from "@/components/ui/card";
+import { TrendingUp, Eye, DollarSign, MousePointerClick, Calendar, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, DollarSign, Target, Users, Zap, RefreshCw } from "lucide-react";
+import { MetricCard } from "@/components/analytics/MetricCard";
+import { ChartCard } from "@/components/analytics/ChartCard";
+import { CampaignTable } from "@/components/analytics/CampaignTable";
+import { InsightsAgentSidebar } from "@/components/analytics/InsightsAgentSidebar";
 import { useGoogleMetrics } from "@/hooks/useGoogleMetrics";
 import { useMetaMetrics } from "@/hooks/useMetaMetrics";
-import { useEffect } from "react";
-
-interface MetricCard {
-  title: string;
-  value: string;
-  change: number;
-  icon: any;
-  trend: "up" | "down";
-}
-
-const recentCampaigns = [
-  {
-    id: "1",
-    name: "Lançamento Produto X",
-    status: "Em andamento",
-    progress: 75,
-    roi: "425%",
-    agents: 8,
-  },
-  {
-    id: "2",
-    name: "Black Friday 2024",
-    status: "Planejamento",
-    progress: 30,
-    roi: "Estimado 380%",
-    agents: 12,
-  },
-  {
-    id: "3",
-    name: "Rebranding Completo",
-    status: "Em andamento",
-    progress: 50,
-    roi: "N/A",
-    agents: 10,
-  },
-];
 
 const PerformanceDashboard = () => {
-  const { analytics, ads, isConnected, isLoading, connectGoogle, syncMetrics } = useGoogleMetrics();
-  const { ads: metaAds, isConnected: metaConnected, isLoading: metaLoading, syncMetrics: syncMetaMetrics } = useMetaMetrics();
+  const { analytics, ads, isConnected } = useGoogleMetrics();
+  const { ads: metaAds } = useMetaMetrics();
 
-  // Check for OAuth callback success/error
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('success') === 'true') {
-      window.history.replaceState({}, '', '/performance');
-      syncMetrics();
-    }
-  }, []);
-
-  // Calculate dynamic metrics from Google data
-  const metrics: MetricCard[] = isConnected && analytics && ads ? [
-    {
-      title: "Sessões (GA4)",
-      value: analytics.sessions.toLocaleString('pt-BR'),
-      change: 12.5,
-      icon: Users,
-      trend: "up",
-    },
-    {
-      title: "CTR Google Ads",
-      value: `${ads.ctr.toFixed(2)}%`,
-      change: 8.2,
-      icon: Target,
-      trend: "up",
-    },
-    {
-      title: "Custo Total (Ads)",
-      value: `R$ ${ads.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-      change: -5.3,
-      icon: DollarSign,
-      trend: "down",
-    },
-    {
-      title: "Conversões Totais",
-      value: (analytics.conversions + ads.conversions).toLocaleString('pt-BR'),
-      change: 15.3,
-      icon: Zap,
-      trend: "up",
-    },
-  ] : [
-    {
-      title: "Campanhas Ativas",
-      value: "12",
-      change: 8.2,
-      icon: Target,
-      trend: "up",
-    },
-    {
-      title: "ROI Médio",
-      value: "347%",
-      change: 12.5,
-      icon: DollarSign,
-      trend: "up",
-    },
-    {
-      title: "Alcance Total",
-      value: "2.4M",
-      change: -3.2,
-      icon: Users,
-      trend: "down",
-    },
-    {
-      title: "Taxa de Conversão",
-      value: "4.8%",
-      change: 15.3,
-      icon: Zap,
-      trend: "up",
-    },
+  // Mock data for charts
+  const campaignData = [
+    { name: "Jan", value: 850 },
+    { name: "Fev", value: 920 },
+    { name: "Mar", value: 1050 },
+    { name: "Abr", value: 1180 },
+    { name: "Mai", value: 1100 },
+    { name: "Jun", value: 1247 },
   ];
 
+  const trafficData = [
+    { name: "Jan", organic: 420, paid: 380 },
+    { name: "Fev", organic: 510, paid: 410 },
+    { name: "Mar", organic: 580, paid: 470 },
+    { name: "Abr", organic: 650, paid: 530 },
+    { name: "Mai", organic: 720, paid: 480 },
+    { name: "Jun", organic: 800, paid: 447 },
+  ];
+
+  const roiData = [
+    { name: "Google Ads", value: 5.2 },
+    { name: "Meta Ads", value: 4.8 },
+    { name: "LinkedIn", value: 3.9 },
+    { name: "Twitter", value: 3.2 },
+  ];
+
+  const deviceData = [
+    { name: "Mobile", value: 847, color: "#A1887F" },
+    { name: "Desktop", value: 285, color: "#8D6E63" },
+    { name: "Tablet", value: 115, color: "#6D4C41" },
+  ];
+
+  // Calculate metrics from real data or use mock
+  const conversions = isConnected && analytics && ads 
+    ? analytics.conversions + ads.conversions 
+    : 1247;
+  
+  const impressions = isConnected && ads 
+    ? ads.impressions 
+    : 847000;
+
+  const roas = isConnected && ads && ads.cost > 0
+    ? (ads.conversions * 100 / ads.cost).toFixed(1)
+    : "4.2";
+
+  const ctr = isConnected && ads 
+    ? ads.ctr.toFixed(2)
+    : "3.8";
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gradient mb-2">Performance Dashboard</h2>
-          <p className="text-muted-foreground">
-            {isConnected 
-              ? "Métricas em tempo real do Google Analytics e Google Ads"
-              : "Conecte sua conta Google para ver métricas reais"}
-          </p>
+    <div className="flex gap-6 h-full overflow-hidden">
+      {/* Main Content */}
+      <section className="flex-1 flex flex-col gap-6 overflow-y-auto">
+        {/* Top Actions */}
+        <div className="flex justify-end gap-2">
+          <Button className="bg-[#A1887F] hover:bg-[#8D6E63]">
+            <Calendar className="w-4 h-4 mr-2" />
+            Últimos 30 dias
+          </Button>
+          <Button variant="outline" className="bg-[#2a2a2a] border-gray-600 hover:bg-[#333333]">
+            <Download className="w-4 h-4 mr-2" />
+            Exportar
+          </Button>
         </div>
-        <div className="flex gap-2">
-          {!isConnected ? (
-            <Button onClick={connectGoogle} size="lg">
-              🔗 Conectar Google
-            </Button>
-          ) : (
-            <Button onClick={syncMetrics} variant="outline" disabled={isLoading}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Atualizar Métricas
-            </Button>
-          )}
+
+        {/* Metric Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <MetricCard
+            title="Conversões"
+            value={conversions.toLocaleString('pt-BR')}
+            change="+23%"
+            icon={<TrendingUp className="w-6 h-6" />}
+            color="green"
+            progress={78}
+          />
+          <MetricCard
+            title="Impressões"
+            value={`${(impressions / 1000).toFixed(0)}K`}
+            change="+12%"
+            icon={<Eye className="w-6 h-6" />}
+            color="blue"
+            progress={65}
+          />
+          <MetricCard
+            title="ROAS"
+            value={`${roas}x`}
+            change="+8%"
+            icon={<DollarSign className="w-6 h-6" />}
+            color="yellow"
+            progress={84}
+          />
+          <MetricCard
+            title="CTR"
+            value={`${ctr}%`}
+            change="+15%"
+            icon={<MousePointerClick className="w-6 h-6" />}
+            color="purple"
+            progress={76}
+          />
         </div>
-      </div>
 
-      {/* Google Metrics Grid */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <span className="text-xl">📊</span>
-          Google Analytics & Ads
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map((metric) => {
-          const Icon = metric.icon;
-          const TrendIcon = metric.trend === "up" ? TrendingUp : TrendingDown;
-          
-          return (
-            <Card key={metric.title} className="glass-panel p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">{metric.title}</p>
-                  <h3 className="text-3xl font-bold">{metric.value}</h3>
-                  <div className={`flex items-center gap-1 mt-2 text-sm ${
-                    metric.trend === "up" ? "text-green-500" : "text-red-500"
-                  }`}>
-                    <TrendIcon className="w-4 h-4" />
-                    <span>{Math.abs(metric.change)}%</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <Icon className="w-6 h-6 text-primary" />
-                </div>
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ChartCard
+            title="Performance das Campanhas"
+            type="line"
+            data={campaignData}
+            actions={
+              <div className="flex gap-2">
+                <button className="px-3 py-1 bg-[#A1887F] text-white text-xs rounded-full">
+                  Google Ads
+                </button>
+                <button className="px-3 py-1 bg-[#2a2a2a] text-gray-300 text-xs rounded-full hover:bg-[#333333]">
+                  Meta Ads
+                </button>
               </div>
-            </Card>
-          );
-        })}
+            }
+          />
+          <ChartCard
+            title="Tráfego Orgânico vs Pago"
+            type="area"
+            data={trafficData}
+          />
+          <ChartCard
+            title="ROI por Canal"
+            subtitle="+18% este mês"
+            type="bar"
+            data={roiData}
+          />
+          <ChartCard
+            title="Conversões por Dispositivo"
+            subtitle="Total: 1,247"
+            type="pie"
+            data={deviceData}
+          />
         </div>
-      </div>
 
-      {/* Meta Ads Metrics Grid */}
-      {metaConnected && metaAds && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <span className="text-xl">📱</span>
-              Meta Ads (Facebook/Instagram)
-            </h3>
-            <Button onClick={() => syncMetaMetrics()} variant="outline" size="sm" disabled={metaLoading}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${metaLoading ? 'animate-spin' : ''}`} />
-              Sincronizar Meta
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="glass-panel p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Impressões (Meta)</p>
-                  <h3 className="text-3xl font-bold">{metaAds.impressions.toLocaleString('pt-BR')}</h3>
-                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
-                    <span>Últimos 30 dias</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-            </Card>
+        {/* Campaign Table */}
+        <CampaignTable />
+      </section>
 
-            <Card className="glass-panel p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Alcance (Reach)</p>
-                  <h3 className="text-3xl font-bold">{metaAds.reach.toLocaleString('pt-BR')}</h3>
-                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
-                    <span>Pessoas únicas</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <Target className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="glass-panel p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Cliques (Meta)</p>
-                  <h3 className="text-3xl font-bold">{metaAds.clicks.toLocaleString('pt-BR')}</h3>
-                  <div className="flex items-center gap-1 mt-2 text-sm text-green-500">
-                    <TrendingUp className="w-4 h-4" />
-                    <span>CTR: {metaAds.ctr.toFixed(2)}%</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <Target className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="glass-panel p-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Custo Total (Meta)</p>
-                  <h3 className="text-3xl font-bold">R$ {metaAds.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
-                  <div className="flex items-center gap-1 mt-2 text-sm text-muted-foreground">
-                    <span>CPM: R$ {metaAds.cpm.toFixed(2)}</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-primary" />
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {!metaConnected && (
-        <Card className="glass-panel p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
-                <span className="text-xl">📱</span>
-                Meta Ads (Facebook/Instagram)
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Configure suas credenciais da Meta e sincronize para ver métricas
-              </p>
-            </div>
-            <Button onClick={() => syncMetaMetrics()} variant="outline">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Sincronizar Meta Ads
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Recent Campaigns */}
-      <Card className="glass-panel p-6">
-        <h3 className="text-xl font-semibold mb-4">Campanhas Recentes</h3>
-        <div className="space-y-4">
-          {recentCampaigns.map((campaign) => (
-            <div
-              key={campaign.id}
-              className="p-4 rounded-xl border border-border/50 bg-background/50 hover:bg-background/80 transition-colors"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h4 className="font-semibold">{campaign.name}</h4>
-                  <p className="text-sm text-muted-foreground">{campaign.status}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-primary">{campaign.roi}</p>
-                  <p className="text-xs text-muted-foreground">{campaign.agents} agentes</p>
-                </div>
-              </div>
-              
-              {/* Progress Bar */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Progresso</span>
-                  <span>{campaign.progress}%</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-500"
-                    style={{ width: `${campaign.progress}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Agent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass-panel p-6">
-          <h3 className="text-xl font-semibold mb-4">Agentes Mais Ativos</h3>
-          <div className="space-y-3">
-            {[
-              { name: "Ricardo Mendes", tasks: 45, efficiency: 98 },
-              { name: "Ana Costa", tasks: 38, efficiency: 95 },
-              { name: "Rafael Torres", tasks: 32, efficiency: 92 },
-              { name: "Larissa Martins", tasks: 28, efficiency: 96 },
-            ].map((agent, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <div>
-                    <p className="font-medium text-sm">{agent.name}</p>
-                    <p className="text-xs text-muted-foreground">{agent.tasks} tarefas</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-primary">{agent.efficiency}%</p>
-                  <p className="text-xs text-muted-foreground">eficiência</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="glass-panel p-6">
-          <h3 className="text-xl font-semibold mb-4">Integrações Ativas</h3>
-          <div className="space-y-3">
-            {[
-              { name: "Google Ads API", status: "Conectado", calls: "1.2k" },
-              { name: "Meta Ads API", status: "Conectado", calls: "980" },
-              { name: "DALL-E 3", status: "Conectado", calls: "450" },
-              { name: "Runway Gen-3", status: "Conectado", calls: "125" },
-            ].map((integration, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <div>
-                    <p className="font-medium text-sm">{integration.name}</p>
-                    <p className="text-xs text-muted-foreground">{integration.status}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold">{integration.calls}</p>
-                  <p className="text-xs text-muted-foreground">chamadas</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+      {/* Insights Sidebar */}
+      <InsightsAgentSidebar />
     </div>
   );
 };

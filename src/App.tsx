@@ -38,7 +38,7 @@ const App = () => (
             <Route path="/chat" element={<ProtectedRoute><AppLayout><Chat /></AppLayout></ProtectedRoute>} />
             <Route path="/knowledge" element={<ProtectedRoute><AppLayout><KnowledgeBase /></AppLayout></ProtectedRoute>} />
             <Route path="/team" element={<ProtectedRoute><AppLayout title="A Matilha" subtitle="Gerencie sua equipe de agentes de IA"><Team /></AppLayout></ProtectedRoute>} />
-            <Route path="/performance" element={<ProtectedRoute><AppLayout><Performance /></AppLayout></ProtectedRoute>} />
+            <Route path="/performance" element={<ProtectedRoute><AppLayout title="Analytics" subtitle="Acompanhe o desempenho das suas campanhas"><Performance /></AppLayout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>} />
             <Route path="/planning" element={<ProtectedRoute><AppLayout><BudgetPlanning /></AppLayout></ProtectedRoute>} />
             
