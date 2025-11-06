@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, DollarSign, MousePointerClick, Calendar, Download, Instagram, Linkedin, Youtube } from "lucide-react";
+import { TrendingUp, Eye, DollarSign, MousePointerClick, Calendar, Download, Instagram, Linkedin, Youtube, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/analytics/MetricCard";
 import { ChartCard } from "@/components/analytics/ChartCard";
@@ -10,15 +10,98 @@ import { useSocialMediaMetrics } from "@/hooks/useSocialMediaMetrics";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 const PerformanceDashboard = () => {
-  const { analytics, ads: googleAds, isConnected } = useGoogleMetrics();
-  const { ads: metaAds } = useMetaMetrics();
-  const { instagram, linkedin, youtube, isLoading: socialLoading } = useSocialMediaMetrics();
+  const { analytics, ads: googleAds, isConnected, syncMetrics: syncGoogle } = useGoogleMetrics();
+  const { ads: metaAds, syncMetrics: syncMeta } = useMetaMetrics();
+  const { instagram, linkedin, youtube, isLoading: socialLoading, syncMetrics: syncSocial } = useSocialMediaMetrics();
+  const { toast } = useToast();
   
   const [campaignData, setCampaignData] = useState<any[]>([]);
   const [roiData, setRoiData] = useState<any[]>([]);
   const [socialGrowthData, setSocialGrowthData] = useState<any[]>([]);
+  const [isSyncingMeta, setIsSyncingMeta] = useState(false);
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+  const [isSyncingSocial, setIsSyncingSocial] = useState(false);
+
+  // Handlers para sincronização manual
+  const handleMetaSync = async () => {
+    setIsSyncingMeta(true);
+    try {
+      await syncMeta();
+      toast({
+        title: "Meta Ads sincronizado",
+        description: "Dados atualizados com sucesso!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao sincronizar Meta Ads",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingMeta(false);
+    }
+  };
+
+  const handleGoogleSync = async () => {
+    setIsSyncingGoogle(true);
+    try {
+      await syncGoogle();
+      toast({
+        title: "Google Ads sincronizado",
+        description: "Dados atualizados com sucesso!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao sincronizar Google Ads",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingGoogle(false);
+    }
+  };
+
+  const handleSocialSync = async () => {
+    setIsSyncingSocial(true);
+    try {
+      await syncSocial('instagram', 'seu_perfil');
+      toast({
+        title: "Redes sociais sincronizadas",
+        description: "Dados atualizados com sucesso!",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao sincronizar redes sociais",
+        description: error.message || "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncingSocial(false);
+    }
+  };
+
+  // Auto-sync Meta Ads se não houver dados
+  useEffect(() => {
+    const autoSyncMetaAds = async () => {
+      const hasAttemptedSync = sessionStorage.getItem('meta_ads_sync_attempted');
+      
+      if (!metaAds && !hasAttemptedSync && !isSyncingMeta) {
+        console.log('Nenhum dado de Meta Ads encontrado, tentando sincronizar automaticamente...');
+        sessionStorage.setItem('meta_ads_sync_attempted', 'true');
+        
+        try {
+          await handleMetaSync();
+        } catch (error) {
+          console.error('Auto-sync falhou:', error);
+        }
+      }
+    };
+    
+    autoSyncMetaAds();
+  }, [metaAds]);
 
   // Carregar dados reais de campanhas para gráficos
   useEffect(() => {
@@ -109,7 +192,7 @@ const PerformanceDashboard = () => {
     };
 
     loadHistoricalData();
-  }, []);
+  }, [isSyncingMeta, isSyncingGoogle, isSyncingSocial]);
 
   const trafficData = [
     { name: "Jan", organic: 420, paid: 380 },
@@ -142,15 +225,50 @@ const PerformanceDashboard = () => {
       {/* Main Content */}
       <section className="flex-1 flex flex-col gap-6 overflow-y-auto">
         {/* Top Actions */}
-        <div className="flex justify-end gap-2">
-          <Button className="bg-[#A1887F] hover:bg-[#8D6E63]">
-            <Calendar className="w-4 h-4 mr-2" />
-            Últimos 30 dias
-          </Button>
-          <Button variant="outline" className="bg-[#2a2a2a] border-gray-600 hover:bg-[#333333]">
-            <Download className="w-4 h-4 mr-2" />
-            Exportar
-          </Button>
+        <div className="flex justify-between items-center">
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleGoogleSync}
+              disabled={isSyncingGoogle}
+              variant="outline"
+              size="sm"
+              className="border-blue-500/30 hover:bg-blue-500/10"
+            >
+              {isSyncingGoogle ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Google Ads
+            </Button>
+            <Button 
+              onClick={handleMetaSync}
+              disabled={isSyncingMeta}
+              variant="outline"
+              size="sm"
+              className="border-purple-500/30 hover:bg-purple-500/10"
+            >
+              {isSyncingMeta ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Meta Ads
+            </Button>
+            <Button 
+              onClick={handleSocialSync}
+              disabled={isSyncingSocial}
+              variant="outline"
+              size="sm"
+              className="border-green-500/30 hover:bg-green-500/10"
+            >
+              {isSyncingSocial ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Redes Sociais
+            </Button>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button className="bg-[#A1887F] hover:bg-[#8D6E63]">
+              <Calendar className="w-4 h-4 mr-2" />
+              Últimos 30 dias
+            </Button>
+            <Button variant="outline" className="bg-[#2a2a2a] border-gray-600 hover:bg-[#333333]">
+              <Download className="w-4 h-4 mr-2" />
+              Exportar
+            </Button>
+          </div>
         </div>
 
         {/* Metric Cards - Ads */}
