@@ -1,7 +1,16 @@
-import { Bell } from "lucide-react";
+import { Bell, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   title: string;
@@ -9,11 +18,17 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const getUserInitials = () => {
     if (!user?.email) return 'U';
     return user.email.charAt(0).toUpperCase();
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/login');
   };
 
   return (
@@ -37,19 +52,55 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
 
         {/* User Profile */}
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 border-2 border-[#A1887F]">
-            <AvatarFallback className="bg-[#A1887F] text-white">
-              {getUserInitials()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="hidden md:block">
-            <p className="font-semibold text-white text-sm">
-              {user?.email?.split('@')[0] || 'User'}
-            </p>
-            <p className="text-xs text-gray-400">Marketing Lead</p>
-          </div>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
+              <Avatar className="h-10 w-10 border-2 border-[#A1887F]">
+                <AvatarFallback className="bg-[#A1887F] text-white">
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="hidden md:block text-left">
+                <p className="font-semibold text-white text-sm">
+                  {user?.email?.split('@')[0] || 'User'}
+                </p>
+                <p className="text-xs text-gray-400">Marketing Lead</p>
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+          
+          <DropdownMenuContent 
+            align="end" 
+            className="w-56 bg-[#1e1e1e] border-gray-700"
+          >
+            <DropdownMenuLabel className="text-gray-400">
+              <div className="flex flex-col">
+                <span className="text-white font-semibold">Minha Conta</span>
+                <span className="text-xs text-gray-500 font-normal mt-1">
+                  {user?.email}
+                </span>
+              </div>
+            </DropdownMenuLabel>
+            
+            <DropdownMenuSeparator className="bg-gray-700" />
+            
+            <DropdownMenuItem 
+              onClick={() => navigate('/settings')}
+              className="cursor-pointer text-gray-300 hover:text-white hover:bg-gray-800"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              <span>Configurações</span>
+            </DropdownMenuItem>
+            
+            <DropdownMenuItem 
+              onClick={handleSignOut}
+              className="cursor-pointer text-red-400 hover:text-red-300 hover:bg-gray-800"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Sair</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );
