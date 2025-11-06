@@ -22,12 +22,26 @@ export type LLMModel =
   | 'gpt-5-mini-2025-08-07'
   | 'gpt-5-nano-2025-08-07'
   | 'o3-2025-04-16'
-  | 'o4-mini-2025-04-16';
+  | 'o4-mini-2025-04-16'
+  // Anthropic Direct - Latest Models
+  | 'claude-sonnet-4-20250514'
+  | 'claude-opus-4-20250514'
+  | 'claude-3-7-sonnet-20250219'
+  | 'claude-3-5-haiku-20241022'
+  // Anthropic Direct - Legacy Models
+  | 'claude-3-5-sonnet-20241022-direct'
+  | 'claude-3-opus-20240229'
+  | 'claude-3-haiku-20240307';
 
 /**
  * Get the appropriate API endpoint based on the model
  */
 export function getLLMEndpoint(model: string): string {
+  // Anthropic Direct models (check first - most specific)
+  if (isAnthropicDirect(model)) {
+    return 'https://api.anthropic.com/v1/messages';
+  }
+  
   // Lovable AI Gateway models
   if (model.startsWith('google/') || 
       model.startsWith('openai/') || 
@@ -49,6 +63,13 @@ export function getLLMEndpoint(model: string): string {
  * Get the appropriate API key based on the model
  */
 export function getAPIKey(model: string): string {
+  // Anthropic Direct models (check first)
+  if (isAnthropicDirect(model)) {
+    const key = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!key) throw new Error('ANTHROPIC_API_KEY not configured');
+    return key;
+  }
+  
   // Lovable AI Gateway models
   if (model.startsWith('google/') || 
       model.startsWith('openai/') || 
@@ -68,6 +89,62 @@ export function getAPIKey(model: string): string {
   }
   
   throw new Error(`Unknown model provider for: ${model}`);
+}
+
+/**
+ * Check if model is Anthropic Direct API
+ */
+export function isAnthropicDirect(model: string): boolean {
+  // Anthropic Direct models have date format (YYYYMMDD) in their name
+  return model.startsWith('claude-') && (
+    /claude-.*-\d{8}/.test(model) ||  // claude-sonnet-4-20250514
+    model.endsWith('-direct')          // claude-3-5-sonnet-20241022-direct
+  );
+}
+
+/**
+ * Convert OpenAI-style messages to Anthropic format
+ */
+export function prepareAnthropicRequest(messages: any[]): { 
+  system?: string; 
+  messages: any[] 
+} {
+  let systemPrompt: string | undefined;
+  const anthropicMessages: any[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      // Anthropic uses separate system field
+      systemPrompt = msg.content;
+    } else {
+      anthropicMessages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      });
+    }
+  }
+
+  return { system: systemPrompt, messages: anthropicMessages };
+}
+
+/**
+ * Get the correct headers based on the model
+ */
+export function getHeaders(model: string, apiKey: string): Record<string, string> {
+  // Anthropic requires special headers
+  if (isAnthropicDirect(model)) {
+    return {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    };
+  }
+  
+  // OpenAI and Lovable AI use standard Authorization header
+  return {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  };
 }
 
 /**

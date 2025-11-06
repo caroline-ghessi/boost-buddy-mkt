@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { getLLMEndpoint, getAPIKey } from "../_shared/llm-router.ts";
+import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, isAnthropicDirect } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,32 +140,65 @@ Retorne em formato JSON estruturado:
     const model = agentConfig?.llm_model || 'google/gemini-2.5-flash';
     const endpoint = getLLMEndpoint(model);
     const apiKey = getAPIKey(model);
+    const headers = getHeaders(model, apiKey);
 
-    // 5. Chamar LLM API (Thiago)
-    const lovableResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    // Prepare request body based on model provider
+    let requestBody: any;
+    const systemMessage = agentConfig?.system_prompt || "Você é Thiago Costa, especialista em inteligência competitiva.";
+
+    if (isAnthropicDirect(model)) {
+      // Anthropic API format
+      const allMessages = [
+        { role: "system", content: systemMessage },
+        { role: "user", content: analysisPrompt },
+      ];
+      const { system, messages: anthropicMessages } = prepareAnthropicRequest(allMessages);
+      
+      requestBody = {
+        model: model,
+        max_tokens: agentConfig?.max_tokens || 2000,
+        temperature: agentConfig?.temperature || 0.7,
+        system: system,
+        messages: anthropicMessages,
+      };
+    } else {
+      // OpenAI/Lovable AI Gateway format
+      requestBody = {
         model: model,
         messages: [
-          { role: "system", content: agentConfig?.system_prompt || "Você é Thiago Costa, especialista em inteligência competitiva." },
+          { role: "system", content: systemMessage },
           { role: "user", content: analysisPrompt },
         ],
         temperature: agentConfig?.temperature || 0.7,
         max_tokens: agentConfig?.max_tokens || 2000,
         response_format: { type: "json_object" },
-      }),
+      };
+    }
+
+    // 5. Chamar LLM API (Thiago)
+    const lovableResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody),
     });
 
     if (!lovableResponse.ok) {
-      throw new Error(`Lovable API error: ${lovableResponse.statusText}`);
+      throw new Error(`LLM API error: ${lovableResponse.statusText}`);
     }
 
     const aiResponse = await lovableResponse.json();
-    const analysis = JSON.parse(aiResponse.choices[0].message.content);
+    
+    // Parse response based on model provider
+    let analysisContent: string;
+    if (isAnthropicDirect(model)) {
+      // Anthropic format: { content: [{ type: "text", text: "..." }] }
+      analysisContent = aiResponse.content[0].text;
+    } else {
+      // OpenAI/Lovable AI format: { choices: [{ message: { content: "..." } }] }
+      analysisContent = aiResponse.choices[0].message.content;
+    }
+    
+    const analysis = JSON.parse(analysisContent);
 
     console.log(`✅ Análise concluída! Mudanças detectadas: ${analysis.changes?.length || 0}`);
 

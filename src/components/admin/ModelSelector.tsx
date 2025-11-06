@@ -13,7 +13,32 @@ export const ModelSelector = ({ value, onValueChange }: ModelSelectorProps) => {
       </SelectTrigger>
       <SelectContent>
         <SelectGroup>
-          <SelectLabel>🌟 Claude (Lovable AI) - Raciocínio Superior</SelectLabel>
+          <SelectLabel>🔥 Claude Direct (Anthropic API) - Máximo Controle</SelectLabel>
+          <SelectItem value="claude-sonnet-4-20250514">
+            Claude Sonnet 4 (2025) ⭐ (Mais Recente)
+          </SelectItem>
+          <SelectItem value="claude-opus-4-20250514">
+            Claude Opus 4 (2025) 💎 (Mais Poderoso)
+          </SelectItem>
+          <SelectItem value="claude-3-7-sonnet-20250219">
+            Claude 3.7 Sonnet (Pensamento Estendido)
+          </SelectItem>
+          <SelectItem value="claude-3-5-haiku-20241022">
+            Claude 3.5 Haiku (Mais Rápido)
+          </SelectItem>
+          <SelectItem value="claude-3-5-sonnet-20241022-direct">
+            Claude 3.5 Sonnet Direct (Legacy)
+          </SelectItem>
+          <SelectItem value="claude-3-opus-20240229">
+            Claude 3 Opus (Legacy)
+          </SelectItem>
+          <SelectItem value="claude-3-haiku-20240307">
+            Claude 3 Haiku (Legacy)
+          </SelectItem>
+        </SelectGroup>
+        
+        <SelectGroup>
+          <SelectLabel>🌟 Claude (Lovable AI) - Sem Config</SelectLabel>
           <SelectItem value="claude-sonnet-4-5">
             Claude Sonnet 4.5 ⭐ (Recomendado Líderes)
           </SelectItem>

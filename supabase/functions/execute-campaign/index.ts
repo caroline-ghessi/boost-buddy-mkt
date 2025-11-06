@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { getLLMEndpoint, getAPIKey } from "../_shared/llm-router.ts";
+import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, isAnthropicDirect } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -95,6 +95,7 @@ serve(async (req) => {
     const model = agentConfig?.llm_model || 'google/gemini-2.5-flash';
     const endpoint = getLLMEndpoint(model);
     const apiKey = getAPIKey(model);
+    const headers = getHeaders(model, apiKey);
 
     const ricardoPrompt = `${agentConfig?.system_prompt || ""}\n\nAnalise este brief de campanha e crie uma estratégia de execução detalhada:
 
@@ -112,24 +113,52 @@ Forneça uma estratégia incluindo:
 3. Prioridades
 4. Timeline estimado`;
 
-    const lovableResponse = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
+    // Prepare request body based on model provider
+    let requestBody: any;
+    const systemMessage = agentConfig?.system_prompt || "";
+
+    if (isAnthropicDirect(model)) {
+      // Anthropic API format
+      const allMessages = [
+        { role: "system", content: systemMessage },
+        { role: "user", content: ricardoPrompt }
+      ];
+      const { system, messages: anthropicMessages } = prepareAnthropicRequest(allMessages);
+      
+      requestBody = {
+        model: model,
+        max_tokens: 4096,
+        system: system,
+        messages: anthropicMessages,
+      };
+    } else {
+      // OpenAI/Lovable AI Gateway format
+      requestBody = {
         model: model,
         messages: [
-          { role: "system", content: agentConfig?.system_prompt || "" },
+          { role: "system", content: systemMessage },
           { role: "user", content: ricardoPrompt }
         ],
         stream: false,
-      }),
+      };
+    }
+
+    const lovableResponse = await fetch(endpoint, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody),
     });
 
     const lovableData = await lovableResponse.json();
-    const ricardoAnalysis = lovableData.choices[0].message.content;
+    
+    // Parse response based on model provider
+    let ricardoAnalysis: string;
+    if (isAnthropicDirect(model)) {
+      ricardoAnalysis = lovableData.content[0].text;
+    } else {
+      ricardoAnalysis = lovableData.choices[0].message.content;
+    }
+    
     console.log("✅ Ricardo finalizou análise");
 
     // 3. Criar task master de orquestração

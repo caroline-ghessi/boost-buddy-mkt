@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
-import { getLLMEndpoint, getAPIKey } from "../_shared/llm-router.ts";
+import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, isAnthropicDirect } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +37,7 @@ serve(async (req) => {
     const model = agentConfig?.llm_model || 'google/gemini-2.5-flash';
     const endpoint = getLLMEndpoint(model);
     const apiKey = getAPIKey(model);
+    const headers = getHeaders(model, apiKey);
 
     // Query RAG for relevant context if user message exists
     let ragContext = "";
@@ -54,21 +55,42 @@ serve(async (req) => {
       }
     }
 
-    // Call LLM API (dynamic endpoint based on model)
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    // Prepare request body based on model provider
+    let requestBody: any;
+    let response: Response;
+
+    if (isAnthropicDirect(model)) {
+      // Anthropic API format
+      const allMessages = [
+        { role: "system", content: systemPrompt + ragContext },
+        ...messages,
+      ];
+      const { system, messages: anthropicMessages } = prepareAnthropicRequest(allMessages);
+      
+      requestBody = {
+        model: model,
+        max_tokens: 4096,
+        system: system,
+        messages: anthropicMessages,
+        stream: true
+      };
+    } else {
+      // OpenAI/Lovable AI Gateway format
+      requestBody = {
         model: model,
         messages: [
           { role: "system", content: systemPrompt + ragContext },
           ...messages,
         ],
         stream: true,
-      }),
+      };
+    }
+
+    // Call LLM API
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
