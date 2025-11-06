@@ -14,13 +14,22 @@ interface AgentDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave?: (agentId: string, updates: Partial<Agent>) => Promise<boolean>;
+  onCreate?: (newAgent: Omit<Agent, 'id' | 'created_at' | 'updated_at'>) => Promise<boolean>;
   onUploadPhoto?: (file: File, agentId: string) => Promise<string | null>;
   onDelete?: (agentId: string) => Promise<void>;
 }
 
-export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto, onDelete }: AgentDetailModalProps) {
+export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onUploadPhoto, onDelete }: AgentDetailModalProps) {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
+  const [agentId, setAgentId] = useState("");
+  const [breed, setBreed] = useState("");
+  const [breedTrait, setBreedTrait] = useState("");
+  const [emoji, setEmoji] = useState("");
+  const [team, setTeam] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [yearsExperience, setYearsExperience] = useState(0);
+  const [status, setStatus] = useState<string>("idle");
   const [llmModel, setLlmModel] = useState("gpt-4");
   const [temperature, setTemperature] = useState(0.7);
   const [systemPrompt, setSystemPrompt] = useState("");
@@ -31,55 +40,108 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
+  const isCreating = !agent;
+
   useEffect(() => {
     if (agent) {
+      // Modo de edição
       setName(agent.name);
       setRole(agent.role);
+      setAgentId(agent.agent_id);
+      setBreed(agent.breed || "");
+      setBreedTrait(agent.breed_trait || "");
+      setEmoji(agent.emoji || "🐕");
+      setTeam(agent.team || "");
+      setSpecialty(agent.specialty || "");
+      setYearsExperience(agent.years_experience || 0);
+      setStatus(agent.status || "idle");
       setLlmModel(agent.llm_model || "gpt-4");
       setTemperature(agent.temperature || 0.7);
       setSystemPrompt(agent.system_prompt || "");
-      // Revogar URL antiga antes de resetar
       if (previewImageUrl) {
         URL.revokeObjectURL(previewImageUrl);
       }
       setPreviewImageUrl(null);
       setUploadedImageUrl(null);
+    } else {
+      // Modo de criação - valores padrão
+      setName("");
+      setRole("");
+      setAgentId("");
+      setBreed("Golden Retriever");
+      setBreedTrait("Friendly and reliable");
+      setEmoji("🐕");
+      setTeam("marketing");
+      setSpecialty("general");
+      setYearsExperience(0);
+      setStatus("idle");
+      setLlmModel("gpt-4o");
+      setTemperature(0.7);
+      setSystemPrompt("You are a helpful AI assistant.");
+      setPreviewImageUrl(null);
+      setUploadedImageUrl(null);
     }
   }, [agent]);
 
-  if (!agent) return null;
-
   const handleSave = async () => {
-    if (!agent || !onSave) {
-      console.log('❌ handleSave: Missing agent or onSave', { agent: !!agent, onSave: !!onSave });
+    // Validação básica
+    if (!name || !role || (!agentId && isCreating)) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha nome, role e agent ID",
+        variant: "destructive",
+      });
       return;
     }
-    
-    console.log('🔵 handleSave called', { agentId: agent.id, name, role, llmModel, temperature });
-    
+
     setIsSaving(true);
-    const updates: Partial<Agent> = {
-      name,
-      role,
-      llm_model: llmModel,
-      temperature,
-      system_prompt: systemPrompt,
-    };
 
-    // Se houver uma nova foto, adicionar ao update
-    if (uploadedImageUrl) {
-      updates.avatar = uploadedImageUrl;
-      console.log('🖼️ Including uploaded image:', uploadedImageUrl);
-    }
+    try {
+      if (isCreating && onCreate) {
+        // Modo de criação
+        const newAgent: Omit<Agent, 'id' | 'created_at' | 'updated_at'> = {
+          agent_id: agentId,
+          name,
+          role,
+          breed,
+          breed_trait: breedTrait,
+          emoji,
+          team,
+          specialty,
+          years_experience: yearsExperience,
+          status,
+          llm_model: llmModel,
+          temperature,
+          system_prompt: systemPrompt,
+          avatar: uploadedImageUrl || null,
+          level: 'level_1',
+        };
 
-    console.log('💾 Calling onSave with:', { agentId: agent.id, updates });
-    const success = await onSave(agent.id, updates);
-    console.log('✅ Save result:', success);
-    
-    setIsSaving(false);
-    
-    if (success) {
-      onClose();
+        const success = await onCreate(newAgent);
+        if (success) {
+          onClose();
+        }
+      } else if (!isCreating && agent && onSave) {
+        // Modo de edição
+        const updates: Partial<Agent> = {
+          name,
+          role,
+          llm_model: llmModel,
+          temperature,
+          system_prompt: systemPrompt,
+        };
+
+        if (uploadedImageUrl) {
+          updates.avatar = uploadedImageUrl;
+        }
+
+        const success = await onSave(agent.id, updates);
+        if (success) {
+          onClose();
+        }
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -97,7 +159,7 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !agent || !onUploadPhoto) return;
+    if (!file || !onUploadPhoto) return;
 
     // Validar tipo de arquivo
     if (!file.type.startsWith('image/')) {
@@ -125,8 +187,9 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
       const objectUrl = URL.createObjectURL(file);
       setPreviewImageUrl(objectUrl);
       
-      // Upload para Supabase Storage
-      const publicUrl = await onUploadPhoto(file, agent.id);
+      // Upload para Supabase Storage (usar temp ID para criação)
+      const uploadId = agent?.id || 'temp-' + Date.now();
+      const publicUrl = await onUploadPhoto(file, uploadId);
       
       if (publicUrl) {
         setUploadedImageUrl(publicUrl);
@@ -151,7 +214,9 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
       title: "Histórico de Prompts",
       description: "Funcionalidade em desenvolvimento",
     });
-    console.log('Mostrando histórico de prompts para:', agent.name);
+    if (!isCreating) {
+      console.log('Mostrando histórico de prompts para:', name);
+    }
     // TODO: Implementar modal de histórico quando tiver tabela agent_prompt_history
   };
 
@@ -161,20 +226,22 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
         {/* Header */}
         <DialogHeader className="flex flex-row items-center justify-between p-6 border-b border-gray-700/50">
           <div className="flex items-center gap-4">
-            {(previewImageUrl || agent.avatar) ? (
+            {(previewImageUrl || (!isCreating && agent?.avatar)) ? (
               <img 
                 className="h-16 w-16 rounded-full object-cover border-2 border-[#A1887F]" 
-                src={previewImageUrl || agent.avatar} 
-                alt={agent.name}
+                src={previewImageUrl || agent?.avatar} 
+                alt={name || "Novo Agente"}
               />
             ) : (
               <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-3xl">
-                {agent.emoji}
+                {emoji}
               </div>
             )}
             <div>
-              <h2 className="text-2xl font-bold text-white">{agent.name}</h2>
-              <p className="text-[#A1887F]">{agent.role}</p>
+              <h2 className="text-2xl font-bold text-white">
+                {isCreating ? "Novo Agente" : name}
+              </h2>
+              <p className="text-[#A1887F]">{role || "Defina a função"}</p>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -205,6 +272,81 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
                 />
               </div>
 
+              {/* Campos adicionais apenas em modo de criação */}
+              {isCreating && (
+                <>
+                  <div>
+                    <Label className="text-gray-400">Agent ID *</Label>
+                    <Input
+                      value={agentId}
+                      onChange={(e) => setAgentId(e.target.value)}
+                      placeholder="ex: content-writer"
+                      className="mt-2 bg-[#2a2a2a] border-gray-600 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-400">Raça</Label>
+                    <Input
+                      value={breed}
+                      onChange={(e) => setBreed(e.target.value)}
+                      placeholder="ex: Golden Retriever"
+                      className="mt-2 bg-[#2a2a2a] border-gray-600 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-400">Característica da Raça</Label>
+                    <Input
+                      value={breedTrait}
+                      onChange={(e) => setBreedTrait(e.target.value)}
+                      placeholder="ex: Friendly and reliable"
+                      className="mt-2 bg-[#2a2a2a] border-gray-600 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-400">Emoji</Label>
+                    <Input
+                      value={emoji}
+                      onChange={(e) => setEmoji(e.target.value)}
+                      placeholder="🐕"
+                      className="mt-2 bg-[#2a2a2a] border-gray-600 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-400">Time</Label>
+                    <Input
+                      value={team}
+                      onChange={(e) => setTeam(e.target.value)}
+                      placeholder="ex: marketing"
+                      className="mt-2 bg-[#2a2a2a] border-gray-600 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-400">Especialidade</Label>
+                    <Input
+                      value={specialty}
+                      onChange={(e) => setSpecialty(e.target.value)}
+                      placeholder="ex: content creation"
+                      className="mt-2 bg-[#2a2a2a] border-gray-600 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-gray-400">Anos de Experiência</Label>
+                    <Input
+                      type="number"
+                      value={yearsExperience}
+                      onChange={(e) => setYearsExperience(parseInt(e.target.value) || 0)}
+                      className="mt-2 bg-[#2a2a2a] border-gray-600 text-white"
+                    />
+                  </div>
+                </>
+              )}
+
               <div>
                 <Label className="text-gray-400">Modelo LLM</Label>
                 <div className="mt-2">
@@ -233,15 +375,15 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
               <div>
                 <Label className="text-gray-400 mb-2 block">Foto do Agente</Label>
                 <div className="flex items-center gap-4">
-                  {(previewImageUrl || agent.avatar) ? (
+                  {(previewImageUrl || (!isCreating && agent?.avatar)) ? (
                     <img 
                       className="h-20 w-20 rounded-full object-cover border-2 border-[#A1887F]" 
-                      src={previewImageUrl || agent.avatar} 
-                      alt={agent.name}
+                      src={previewImageUrl || agent?.avatar} 
+                      alt={name || "Agente"}
                     />
                   ) : (
                     <div className="h-20 w-20 rounded-full bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-4xl">
-                      {agent.emoji}
+                      {emoji}
                     </div>
                   )}
                   <input

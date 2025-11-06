@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Download, Loader2 } from "lucide-react";
 
 export default function Team() {
-  const { agents, loading, updateAgent, uploadAgentPhoto, deleteAgent } = useAgents();
+  const { agents, loading, createAgent, updateAgent, uploadAgentPhoto, deleteAgent } = useAgents();
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -30,7 +30,8 @@ export default function Team() {
   };
 
   const handleNewAgent = () => {
-    console.log("Creating new agent");
+    setSelectedAgent(null);
+    setIsModalOpen(true);
   };
 
   const handleBackup = () => {
@@ -107,6 +108,7 @@ export default function Team() {
           setSelectedAgent(null);
         }}
         onSave={updateAgent}
+        onCreate={createAgent}
         onUploadPhoto={uploadAgentPhoto}
         onDelete={async (agentId) => {
           const success = await deleteAgent(agentId);

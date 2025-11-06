@@ -191,6 +191,47 @@ export function useAgents() {
     }
   };
 
+  const createAgent = async (newAgent: Omit<Agent, 'id' | 'created_at' | 'updated_at'>): Promise<boolean> => {
+    try {
+      // Converter specialty para array se necessário (banco espera array)
+      const dbAgent: any = { ...newAgent };
+      if (dbAgent.specialty && typeof dbAgent.specialty === 'string') {
+        dbAgent.specialty = [dbAgent.specialty];
+      }
+      
+      const { data, error } = await supabase
+        .from('agent_configs')
+        .insert([dbAgent])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Adicionar ao estado local
+      const transformedAgent: Agent = {
+        ...data,
+        specialty: Array.isArray(data.specialty) ? data.specialty[0] || '' : data.specialty,
+      };
+      
+      setAgents(prev => [...prev, transformedAgent]);
+
+      toast({
+        title: "Agente criado",
+        description: `${newAgent.name} foi adicionado ao time com sucesso`,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error creating agent:', error);
+      toast({
+        title: "Erro ao criar agente",
+        description: "Não foi possível criar o novo agente",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   useEffect(() => {
     fetchAgents();
   }, []);
@@ -198,6 +239,7 @@ export function useAgents() {
   return {
     agents,
     loading,
+    createAgent,
     updateAgent,
     uploadAgentPhoto,
     deleteAgent,
