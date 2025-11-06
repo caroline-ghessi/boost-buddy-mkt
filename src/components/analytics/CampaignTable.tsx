@@ -24,59 +24,72 @@ export function CampaignTable() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Buscar campanhas do banco
-        const { data: campaignsData } = await supabase
-          .from('campaigns')
-          .select('id, name, status')
+        // Buscar métricas dos últimos 30 dias
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const dateFilter = thirtyDaysAgo.toISOString().split('T')[0];
+
+        // Buscar todas as métricas de Google Ads
+        const { data: googleMetrics } = await supabase
+          .from('google_ads_metrics')
+          .select('campaign_name, impressions, clicks, conversions, cost')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
+          .gte('date', dateFilter);
 
-        if (!campaignsData || campaignsData.length === 0) {
-          setCampaigns([]);
-          setIsLoading(false);
-          return;
-        }
+        // Buscar todas as métricas de Meta Ads
+        const { data: metaMetrics } = await supabase
+          .from('meta_ads_metrics')
+          .select('campaign_name, impressions, clicks, conversions, cost')
+          .eq('user_id', user.id)
+          .gte('date', dateFilter);
 
-        // Buscar métricas de Google Ads e Meta Ads para cada campanha
-        const campaignsWithMetrics = await Promise.all(
-          campaignsData.map(async (campaign) => {
-            // Google Ads metrics
-            const { data: googleMetrics } = await supabase
-              .from('google_ads_metrics')
-              .select('impressions, clicks, conversions, cost')
-              .eq('user_id', user.id)
-              .limit(100);
+        // Agrupar métricas por campaign_name
+        const campaignMap = new Map<string, {
+          name: string;
+          impressions: number;
+          clicks: number;
+          conversions: number;
+          cost: number;
+          status: string;
+        }>();
 
-            // Meta Ads metrics
-            const { data: metaMetrics } = await supabase
-              .from('meta_ads_metrics')
-              .select('impressions, clicks, conversions, cost')
-              .eq('user_id', user.id)
-              .limit(100);
+        // Processar todas as métricas
+        [...(googleMetrics || []), ...(metaMetrics || [])].forEach(metric => {
+          if (!metric.campaign_name) return;
 
-            // Agregar métricas
-            const allMetrics = [...(googleMetrics || []), ...(metaMetrics || [])];
-            
-            const totalImpressions = allMetrics.reduce((acc, m) => acc + (m.impressions || 0), 0);
-            const totalClicks = allMetrics.reduce((acc, m) => acc + (m.clicks || 0), 0);
-            const totalConversions = allMetrics.reduce((acc, m) => acc + (m.conversions || 0), 0);
-            const totalCost = allMetrics.reduce((acc, m) => acc + parseFloat(String(m.cost || 0)), 0);
+          if (!campaignMap.has(metric.campaign_name)) {
+            campaignMap.set(metric.campaign_name, {
+              name: metric.campaign_name,
+              impressions: 0,
+              clicks: 0,
+              conversions: 0,
+              cost: 0,
+              status: 'active' // Assumir ativa se tem dados recentes
+            });
+          }
 
-            const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "0.00";
-            const roas = totalCost > 0 ? (totalConversions * 100 / totalCost).toFixed(1) : "0.0";
+          const campaign = campaignMap.get(metric.campaign_name)!;
+          campaign.impressions += Number(metric.impressions || 0);
+          campaign.clicks += Number(metric.clicks || 0);
+          campaign.conversions += Number(metric.conversions || 0);
+          campaign.cost += parseFloat(String(metric.cost || 0));
+        });
 
-            return {
-              name: campaign.name,
-              impressions: totalImpressions > 1000 ? `${(totalImpressions / 1000).toFixed(0)}K` : totalImpressions.toString(),
-              clicks: totalClicks.toLocaleString('pt-BR'),
-              ctr: `${ctr}%`,
-              conversions: Math.round(totalConversions),
-              roas: `${roas}x`,
-              status: campaign.status,
-            };
-          })
-        );
+        // Calcular métricas derivadas e formatar
+        const campaignsWithMetrics = Array.from(campaignMap.values()).map(c => {
+          const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(2) : "0.00";
+          const roas = c.cost > 0 ? (c.conversions * 100 / c.cost).toFixed(1) : "0.0";
+
+          return {
+            name: c.name,
+            impressions: c.impressions > 1000 ? `${(c.impressions / 1000).toFixed(0)}K` : c.impressions.toString(),
+            clicks: c.clicks.toLocaleString('pt-BR'),
+            ctr: `${ctr}%`,
+            conversions: Math.round(c.conversions),
+            roas: `${roas}x`,
+            status: c.status,
+          };
+        });
 
         setCampaigns(campaignsWithMetrics);
       } catch (error) {
