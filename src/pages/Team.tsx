@@ -87,7 +87,7 @@ export default function Team() {
               status: (agent.status as any) || 'idle',
               yearsExperience: agent.years_experience || 0,
               team: agent.team,
-              imageUrl: agent.image_url,
+              imageUrl: agent.avatar,
             }}
             tasksCount={taskCounts[index] || 0}
             llmModel={agent.llm_model || 'GPT-4'}

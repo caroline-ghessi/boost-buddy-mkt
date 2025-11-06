@@ -19,7 +19,6 @@ export interface Agent {
   llm_model?: string;
   temperature?: number;
   status?: string;
-  image_url?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -41,7 +40,6 @@ interface DbAgent {
   llm_model?: string;
   temperature?: number;
   status?: string;
-  image_url?: string;
   created_at?: string;
   updated_at?: string;
 }

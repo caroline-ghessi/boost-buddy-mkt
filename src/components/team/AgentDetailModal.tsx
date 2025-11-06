@@ -68,7 +68,7 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
 
     // Se houver uma nova foto, adicionar ao update
     if (uploadedImageUrl) {
-      updates.image_url = uploadedImageUrl;
+      updates.avatar = uploadedImageUrl;
       console.log('🖼️ Including uploaded image:', uploadedImageUrl);
     }
 
@@ -161,10 +161,10 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
         {/* Header */}
         <DialogHeader className="flex flex-row items-center justify-between p-6 border-b border-gray-700/50">
           <div className="flex items-center gap-4">
-            {(previewImageUrl || agent.image_url) ? (
+            {(previewImageUrl || agent.avatar) ? (
               <img 
                 className="h-16 w-16 rounded-full object-cover border-2 border-[#A1887F]" 
-                src={previewImageUrl || agent.image_url} 
+                src={previewImageUrl || agent.avatar} 
                 alt={agent.name}
               />
             ) : (
@@ -238,10 +238,10 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
               <div>
                 <Label className="text-gray-400 mb-2 block">Foto do Agente</Label>
                 <div className="flex items-center gap-4">
-                  {(previewImageUrl || agent.image_url) ? (
+                  {(previewImageUrl || agent.avatar) ? (
                     <img 
                       className="h-20 w-20 rounded-full object-cover border-2 border-[#A1887F]" 
-                      src={previewImageUrl || agent.image_url} 
+                      src={previewImageUrl || agent.avatar} 
                       alt={agent.name}
                     />
                   ) : (
