@@ -53,10 +53,16 @@ Deno.serve(async (req) => {
 
     // Get Meta credentials from secrets
     const metaAccessToken = Deno.env.get('META_ACCESS_TOKEN');
-    const metaAdAccountId = Deno.env.get('META_AD_ACCOUNT_ID');
+    let metaAdAccountId = Deno.env.get('META_AD_ACCOUNT_ID');
 
     if (!metaAccessToken || !metaAdAccountId) {
       throw new Error('Meta credentials not configured');
+    }
+
+    // Ensure account ID has the 'act_' prefix required by Meta API
+    if (!metaAdAccountId.startsWith('act_')) {
+      metaAdAccountId = `act_${metaAdAccountId}`;
+      console.log(`Added 'act_' prefix to account ID: ${metaAdAccountId}`);
     }
 
     // Parse date range from request
