@@ -1,4 +1,4 @@
-import { TrendingUp, Eye, DollarSign, MousePointerClick, Calendar, Download } from "lucide-react";
+import { TrendingUp, Eye, DollarSign, MousePointerClick, Calendar, Download, Instagram, Linkedin, Youtube } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/analytics/MetricCard";
 import { ChartCard } from "@/components/analytics/ChartCard";
@@ -6,20 +6,110 @@ import { CampaignTable } from "@/components/analytics/CampaignTable";
 import { InsightsAgentSidebar } from "@/components/analytics/InsightsAgentSidebar";
 import { useGoogleMetrics } from "@/hooks/useGoogleMetrics";
 import { useMetaMetrics } from "@/hooks/useMetaMetrics";
+import { useSocialMediaMetrics } from "@/hooks/useSocialMediaMetrics";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 
 const PerformanceDashboard = () => {
-  const { analytics, ads, isConnected } = useGoogleMetrics();
+  const { analytics, ads: googleAds, isConnected } = useGoogleMetrics();
   const { ads: metaAds } = useMetaMetrics();
+  const { instagram, linkedin, youtube, isLoading: socialLoading } = useSocialMediaMetrics();
+  
+  const [campaignData, setCampaignData] = useState<any[]>([]);
+  const [roiData, setRoiData] = useState<any[]>([]);
+  const [socialGrowthData, setSocialGrowthData] = useState<any[]>([]);
 
-  // Mock data for charts
-  const campaignData = [
-    { name: "Jan", value: 850 },
-    { name: "Fev", value: 920 },
-    { name: "Mar", value: 1050 },
-    { name: "Abr", value: 1180 },
-    { name: "Mai", value: 1100 },
-    { name: "Jun", value: 1247 },
-  ];
+  // Carregar dados reais de campanhas para gráficos
+  useEffect(() => {
+    const loadHistoricalData = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Últimos 6 meses de Google Ads
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+        const { data: googleData } = await supabase
+          .from('google_ads_metrics')
+          .select('date, conversions, cost, clicks, impressions')
+          .eq('user_id', user.id)
+          .gte('date', sixMonthsAgo.toISOString().split('T')[0])
+          .order('date', { ascending: true });
+
+        const { data: metaData } = await supabase
+          .from('meta_ads_metrics')
+          .select('date, conversions, cost, clicks, impressions')
+          .eq('user_id', user.id)
+          .gte('date', sixMonthsAgo.toISOString().split('T')[0])
+          .order('date', { ascending: true });
+
+        // Agregar por mês para gráfico de campanhas
+        if (googleData && metaData) {
+          const monthlyData = new Map();
+          
+          [...googleData, ...metaData].forEach(row => {
+            const month = format(new Date(row.date), 'MMM');
+            if (!monthlyData.has(month)) {
+              monthlyData.set(month, 0);
+            }
+            monthlyData.set(month, monthlyData.get(month) + (row.conversions || 0));
+          });
+
+          const chartData = Array.from(monthlyData.entries()).map(([name, value]) => ({
+            name,
+            value: Math.round(value as number),
+          }));
+
+          setCampaignData(chartData);
+
+          // Calcular ROI por canal
+          const googleTotal = googleData.reduce((acc, row) => acc + (row.conversions || 0), 0);
+          const googleCost = googleData.reduce((acc, row) => acc + parseFloat(String(row.cost || 0)), 0);
+          const metaTotal = metaData.reduce((acc, row) => acc + (row.conversions || 0), 0);
+          const metaCost = metaData.reduce((acc, row) => acc + parseFloat(String(row.cost || 0)), 0);
+
+          setRoiData([
+            { name: "Google Ads", value: googleCost > 0 ? parseFloat((googleTotal * 100 / googleCost).toFixed(1)) : 0 },
+            { name: "Meta Ads", value: metaCost > 0 ? parseFloat((metaTotal * 100 / metaCost).toFixed(1)) : 0 },
+          ]);
+        }
+
+        // Dados de crescimento social
+        const { data: socialData } = await supabase
+          .from('social_media_metrics')
+          .select('date, platform, followers')
+          .eq('user_id', user.id)
+          .gte('date', sixMonthsAgo.toISOString().split('T')[0])
+          .order('date', { ascending: true });
+
+        if (socialData && socialData.length > 0) {
+          const monthlyGrowth = new Map();
+          
+          socialData.forEach(row => {
+            const month = format(new Date(row.date), 'MMM');
+            if (!monthlyGrowth.has(month)) {
+              monthlyGrowth.set(month, { instagram: 0, linkedin: 0, youtube: 0 });
+            }
+            const current = monthlyGrowth.get(month);
+            current[row.platform] = row.followers || 0;
+          });
+
+          const growthData = Array.from(monthlyGrowth.entries()).map(([name, data]) => ({
+            name,
+            ...data,
+          }));
+
+          setSocialGrowthData(growthData);
+        }
+      } catch (error) {
+        console.error('Error loading historical data:', error);
+      }
+    };
+
+    loadHistoricalData();
+  }, []);
 
   const trafficData = [
     { name: "Jan", organic: 420, paid: 380 },
@@ -30,35 +120,22 @@ const PerformanceDashboard = () => {
     { name: "Jun", organic: 800, paid: 447 },
   ];
 
-  const roiData = [
-    { name: "Google Ads", value: 5.2 },
-    { name: "Meta Ads", value: 4.8 },
-    { name: "LinkedIn", value: 3.9 },
-    { name: "Twitter", value: 3.2 },
-  ];
-
   const deviceData = [
     { name: "Mobile", value: 847, color: "#A1887F" },
     { name: "Desktop", value: 285, color: "#8D6E63" },
     { name: "Tablet", value: 115, color: "#6D4C41" },
   ];
 
-  // Calculate metrics from real data or use mock
-  const conversions = isConnected && analytics && ads 
-    ? analytics.conversions + ads.conversions 
-    : 1247;
-  
-  const impressions = isConnected && ads 
-    ? ads.impressions 
-    : 847000;
+  // Calculate metrics from real data
+  const totalConversions = (googleAds?.conversions || 0) + (metaAds?.conversions || 0) + (analytics?.conversions || 0);
+  const totalImpressions = (googleAds?.impressions || 0) + (metaAds?.impressions || 0);
+  const totalCost = (googleAds?.cost || 0) + (metaAds?.cost || 0);
+  const totalClicks = (googleAds?.clicks || 0) + (metaAds?.clicks || 0);
 
-  const roas = isConnected && ads && ads.cost > 0
-    ? (ads.conversions * 100 / ads.cost).toFixed(1)
-    : "4.2";
-
-  const ctr = isConnected && ads 
-    ? ads.ctr.toFixed(2)
-    : "3.8";
+  const conversions = totalConversions > 0 ? totalConversions : 1247;
+  const impressions = totalImpressions > 0 ? totalImpressions : 847000;
+  const roas = totalCost > 0 ? (totalConversions * 100 / totalCost).toFixed(1) : "4.2";
+  const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "3.8";
 
   return (
     <div className="flex gap-6 h-full overflow-hidden">
@@ -76,7 +153,7 @@ const PerformanceDashboard = () => {
           </Button>
         </div>
 
-        {/* Metric Cards */}
+        {/* Metric Cards - Ads */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <MetricCard
             title="Conversões"
@@ -112,33 +189,60 @@ const PerformanceDashboard = () => {
           />
         </div>
 
+        {/* Social Media Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <MetricCard
+            title="Instagram - Seguidores"
+            value={instagram?.followers.toLocaleString('pt-BR') || "Conectar"}
+            change={instagram?.growth ? `+${instagram.growth}` : "N/A"}
+            icon={<Instagram className="w-6 h-6" />}
+            color="purple"
+            progress={instagram ? 85 : 0}
+          />
+          <MetricCard
+            title="LinkedIn - Seguidores"
+            value={linkedin?.followers.toLocaleString('pt-BR') || "Conectar"}
+            change={linkedin?.growth ? `+${linkedin.growth}` : "N/A"}
+            icon={<Linkedin className="w-6 h-6" />}
+            color="blue"
+            progress={linkedin ? 72 : 0}
+          />
+          <MetricCard
+            title="YouTube - Inscritos"
+            value={youtube?.followers.toLocaleString('pt-BR') || "Conectar"}
+            change={youtube?.growth ? `+${youtube.growth}` : "N/A"}
+            icon={<Youtube className="w-6 h-6" />}
+            color="yellow"
+            progress={youtube ? 68 : 0}
+          />
+        </div>
+
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartCard
             title="Performance das Campanhas"
+            subtitle="Conversões mensais"
             type="line"
-            data={campaignData}
+            data={campaignData.length > 0 ? campaignData : [{ name: "Sem dados", value: 0 }]}
             actions={
               <div className="flex gap-2">
                 <button className="px-3 py-1 bg-[#A1887F] text-white text-xs rounded-full">
-                  Google Ads
-                </button>
-                <button className="px-3 py-1 bg-[#2a2a2a] text-gray-300 text-xs rounded-full hover:bg-[#333333]">
-                  Meta Ads
+                  Todas
                 </button>
               </div>
             }
           />
           <ChartCard
-            title="Tráfego Orgânico vs Pago"
+            title="Crescimento de Seguidores"
+            subtitle="Redes sociais"
             type="area"
-            data={trafficData}
+            data={socialGrowthData.length > 0 ? socialGrowthData : trafficData}
           />
           <ChartCard
             title="ROI por Canal"
-            subtitle="+18% este mês"
+            subtitle="Últimos 6 meses"
             type="bar"
-            data={roiData}
+            data={roiData.length > 0 ? roiData : [{ name: "Google Ads", value: 5.2 }, { name: "Meta Ads", value: 4.8 }]}
           />
           <ChartCard
             title="Conversões por Dispositivo"

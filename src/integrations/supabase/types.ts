@@ -1106,6 +1106,69 @@ export type Database = {
           },
         ]
       }
+      social_media_metrics: {
+        Row: {
+          created_at: string | null
+          date: string
+          engagement_rate: number | null
+          followers: number | null
+          followers_change: number | null
+          following: number | null
+          id: string
+          metadata: Json | null
+          platform: string
+          posts_count: number | null
+          posts_published: number | null
+          profile_handle: string
+          scraped_at: string
+          total_comments: number | null
+          total_likes: number | null
+          total_shares: number | null
+          total_views: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          engagement_rate?: number | null
+          followers?: number | null
+          followers_change?: number | null
+          following?: number | null
+          id?: string
+          metadata?: Json | null
+          platform: string
+          posts_count?: number | null
+          posts_published?: number | null
+          profile_handle: string
+          scraped_at: string
+          total_comments?: number | null
+          total_likes?: number | null
+          total_shares?: number | null
+          total_views?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          engagement_rate?: number | null
+          followers?: number | null
+          followers_change?: number | null
+          following?: number | null
+          id?: string
+          metadata?: Json | null
+          platform?: string
+          posts_count?: number | null
+          posts_published?: number | null
+          profile_handle?: string
+          scraped_at?: string
+          total_comments?: number | null
+          total_likes?: number | null
+          total_shares?: number | null
+          total_views?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
