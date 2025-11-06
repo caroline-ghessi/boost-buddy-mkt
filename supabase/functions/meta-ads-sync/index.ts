@@ -65,6 +65,47 @@ Deno.serve(async (req) => {
       console.log(`Added 'act_' prefix to account ID: ${metaAdAccountId}`);
     }
 
+    // Validate token permissions first
+    console.log('Validating Meta access token permissions...');
+    const debugUrl = `https://graph.facebook.com/v22.0/debug_token?input_token=${metaAccessToken}&access_token=${metaAccessToken}`;
+    const debugResponse = await fetch(debugUrl);
+    
+    if (debugResponse.ok) {
+      const debugData = await debugResponse.json();
+      console.log('Token info:', JSON.stringify({
+        app_id: debugData.data?.app_id,
+        is_valid: debugData.data?.is_valid,
+        scopes: debugData.data?.scopes,
+        expires_at: debugData.data?.expires_at,
+      }));
+
+      // Check required scopes
+      const requiredScopes = ['ads_read', 'ads_management'];
+      const tokenScopes = debugData.data?.scopes || [];
+      const missingScopes = requiredScopes.filter(scope => !tokenScopes.includes(scope));
+      
+      if (missingScopes.length > 0) {
+        throw new Error(`Token missing required permissions: ${missingScopes.join(', ')}. Please regenerate token with ads_read and ads_management permissions.`);
+      }
+    } else {
+      console.warn('Could not validate token, proceeding anyway...');
+    }
+
+    // Test account access
+    console.log(`Testing access to account: ${metaAdAccountId}`);
+    const testUrl = `https://graph.facebook.com/v22.0/${metaAdAccountId}?fields=id,name,account_status&access_token=${metaAccessToken}`;
+    const testResponse = await fetch(testUrl);
+    
+    if (!testResponse.ok) {
+      const errorText = await testResponse.text();
+      console.error('Account access test failed:', errorText);
+      throw new Error(`Cannot access Meta Ad Account ${metaAdAccountId}. Error: ${errorText}. Please verify: 1) Token has correct permissions (ads_read, ads_management), 2) Account ID is correct, 3) You have access to this ad account`);
+    }
+
+    const accountInfo = await testResponse.json();
+    console.log(`Successfully connected to account: ${accountInfo.name} (${accountInfo.id})`);
+
+
     // Parse date range from request
     const { startDate, endDate } = await req.json().catch(() => ({}));
     
