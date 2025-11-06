@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import { getLLMEndpoint, getAPIKey } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,15 +24,19 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
-    // Get Ricardo's system prompt from agent_configs
+    // Get Ricardo's system prompt and model from agent_configs
     const { data: agentConfig } = await supabase
       .from('agent_configs')
-      .select('system_prompt')
+      .select('system_prompt, llm_model')
       .eq('name', 'Ricardo Mendes')
       .single();
     
     const systemPrompt = agentConfig?.system_prompt || 
       "Você é Ricardo Mendes, CMO experiente e líder do Buddy AI. Seja estratégico, analítico e oriente campanhas de marketing com excelência.";
+    
+    const model = agentConfig?.llm_model || 'google/gemini-2.5-flash';
+    const endpoint = getLLMEndpoint(model);
+    const apiKey = getAPIKey(model);
 
     // Query RAG for relevant context if user message exists
     let ragContext = "";
@@ -49,15 +54,15 @@ serve(async (req) => {
       }
     }
 
-    // Call Lovable AI Gateway
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Call LLM API (dynamic endpoint based on model)
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: model,
         messages: [
           { role: "system", content: systemPrompt + ragContext },
           ...messages,

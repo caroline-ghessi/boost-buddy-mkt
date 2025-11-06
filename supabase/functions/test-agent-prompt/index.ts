@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getLLMEndpoint, getAPIKey } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { system_prompt, test_message } = await req.json();
+    const { system_prompt, test_message, model } = await req.json();
 
     console.log('Test agent prompt request');
 
@@ -22,21 +23,21 @@ serve(async (req) => {
       );
     }
 
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
+    // Allow testing with any model (default to claude-sonnet-4-5)
+    const selectedModel = model || 'claude-sonnet-4-5';
+    const endpoint = getLLMEndpoint(selectedModel);
+    const apiKey = getAPIKey(selectedModel);
 
-    console.log('Calling Lovable AI for prompt testing...');
+    console.log(`Calling ${selectedModel} for prompt testing...`);
 
-    const response = await fetch('https://api.lovable.app/v1/chat/completions', {
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: selectedModel,
         messages: [
           {
             role: 'system',

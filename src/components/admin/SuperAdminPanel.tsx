@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Editor from "@monaco-editor/react";
 import ReactDiffViewer from "react-diff-viewer-continued";
 import { Textarea } from "@/components/ui/textarea";
+import { ModelSelector } from "./ModelSelector";
 
 interface AgentConfig {
   id: string;
@@ -21,6 +22,7 @@ interface AgentConfig {
   team: string;
   level: string;
   system_prompt: string;
+  llm_model: string;
   updated_at: string;
 }
 
@@ -37,6 +39,7 @@ const SuperAdminPanel = () => {
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<AgentConfig | null>(null);
   const [editedPrompt, setEditedPrompt] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
   const [changeReason, setChangeReason] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -97,6 +100,7 @@ const SuperAdminPanel = () => {
   const handleEdit = (agent: AgentConfig) => {
     setSelectedAgent(agent);
     setEditedPrompt(agent.system_prompt);
+    setSelectedModel(agent.llm_model || 'google/gemini-2.5-flash');
     setIsEditing(true);
   };
 
@@ -127,32 +131,42 @@ const SuperAdminPanel = () => {
 
     setIsLoading(true);
     try {
+      // Update prompt via edge function
       const { data, error } = await supabase.functions.invoke('update-agent-prompt', {
         body: {
           agent_id: selectedAgent.agent_id,
           new_prompt: editedPrompt,
           reason: changeReason,
-          user_id: null // TODO: Add actual user ID when auth is implemented
+          user_id: null
         }
       });
 
       if (error) throw error;
 
+      // Update llm_model directly in agent_configs
+      const { error: modelError } = await supabase
+        .from('agent_configs')
+        .update({ llm_model: selectedModel })
+        .eq('agent_id', selectedAgent.agent_id);
+
+      if (modelError) throw modelError;
+
       toast({
-        title: "Prompt atualizado",
-        description: `Versão ${data.version} do prompt de ${selectedAgent.name} salva com sucesso`,
+        title: "Agente atualizado",
+        description: `Versão ${data.version} do prompt e modelo ${selectedModel} salvos com sucesso`,
       });
 
       setIsEditing(false);
       setSelectedAgent(null);
       setEditedPrompt("");
+      setSelectedModel("");
       setChangeReason("");
       await fetchAgents();
     } catch (error) {
       console.error('Error updating prompt:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar o prompt",
+        description: "Não foi possível atualizar o agente",
         variant: "destructive"
       });
     } finally {
@@ -209,7 +223,8 @@ const SuperAdminPanel = () => {
       const { data, error } = await supabase.functions.invoke('test-agent-prompt', {
         body: {
           system_prompt: editedPrompt,
-          test_message: testMessage
+          test_message: testMessage,
+          model: selectedModel
         }
       });
 
@@ -377,6 +392,16 @@ const SuperAdminPanel = () => {
                     />
                   )}
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="model">Modelo LLM</Label>
+                <div className="mt-2">
+                  <ModelSelector value={selectedModel} onValueChange={setSelectedModel} />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Modelo atual: {selectedAgent?.llm_model || 'Não definido'}
+                </p>
               </div>
 
               <div>

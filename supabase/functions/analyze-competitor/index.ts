@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { getLLMEndpoint, getAPIKey } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -132,19 +133,23 @@ Retorne em formato JSON estruturado:
     // 4. Buscar configuração do Thiago
     const { data: agentConfig } = await supabase
       .from("agent_configs")
-      .select("system_prompt, temperature, max_tokens")
+      .select("system_prompt, temperature, max_tokens, llm_model")
       .eq("agent_id", "competitive-intel")
       .single();
 
-    // 5. Chamar Lovable AI (Thiago)
-    const lovableResponse = await fetch("https://api.lovable.app/v1/chat/completions", {
+    const model = agentConfig?.llm_model || 'google/gemini-2.5-flash';
+    const endpoint = getLLMEndpoint(model);
+    const apiKey = getAPIKey(model);
+
+    // 5. Chamar LLM API (Thiago)
+    const lovableResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-exp",
+        model: model,
         messages: [
           { role: "system", content: agentConfig?.system_prompt || "Você é Thiago Costa, especialista em inteligência competitiva." },
           { role: "user", content: analysisPrompt },

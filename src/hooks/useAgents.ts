@@ -7,7 +7,7 @@ export interface Agent {
   agent_id: string;
   name: string;
   role: string;
-  level: "level_1" | "level_2" | "level_3";
+  level: "level_1" | "level_2" | "level_3" | "level_4";
   team: string;
   avatar?: string;
   breed: string;
@@ -28,7 +28,7 @@ interface DbAgent {
   agent_id: string;
   name: string;
   role: string;
-  level: "level_1" | "level_2" | "level_3";
+  level: "level_1" | "level_2" | "level_3" | "level_4";
   team: string;
   avatar?: string;
   breed: string;

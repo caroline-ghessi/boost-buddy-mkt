@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { getLLMEndpoint, getAPIKey } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,12 +85,16 @@ serve(async (req) => {
     // 2. Ricardo (CMO) analisa o brief
     console.log("🤔 Ricardo analisando brief...");
     
-    // Buscar prompt do Ricardo
+    // Buscar prompt e modelo do Ricardo
     const { data: agentConfig } = await supabase
       .from("agent_configs")
-      .select("system_prompt")
+      .select("system_prompt, llm_model")
       .eq("agent_id", "cmo_ricardo")
       .single();
+
+    const model = agentConfig?.llm_model || 'google/gemini-2.5-flash';
+    const endpoint = getLLMEndpoint(model);
+    const apiKey = getAPIKey(model);
 
     const ricardoPrompt = `${agentConfig?.system_prompt || ""}\n\nAnalise este brief de campanha e crie uma estratégia de execução detalhada:
 
@@ -107,14 +112,14 @@ Forneça uma estratégia incluindo:
 3. Prioridades
 4. Timeline estimado`;
 
-    const lovableResponse = await fetch("https://api.lovable.app/v1/chat/completions", {
+    const lovableResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
+        "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.0-flash-exp",
+        model: model,
         messages: [
           { role: "system", content: agentConfig?.system_prompt || "" },
           { role: "user", content: ricardoPrompt }
