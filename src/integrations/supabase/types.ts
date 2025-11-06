@@ -1157,7 +1157,7 @@ export type Database = {
       }
     }
     Enums: {
-      agent_level: "level_1" | "level_2" | "level_3"
+      agent_level: "level_1" | "level_2" | "level_3" | "level_4"
       app_role: "admin" | "user"
       asset_type: "text" | "image" | "video" | "audio" | "other"
       campaign_status:
@@ -1310,7 +1310,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      agent_level: ["level_1", "level_2", "level_3"],
+      agent_level: ["level_1", "level_2", "level_3", "level_4"],
       app_role: ["admin", "user"],
       asset_type: ["text", "image", "video", "audio", "other"],
       campaign_status: [
