@@ -3,20 +3,6 @@
  */
 
 export type LLMModel =
-  // Lovable AI - Gemini
-  | 'google/gemini-2.5-pro'
-  | 'google/gemini-2.5-flash'
-  | 'google/gemini-2.5-flash-lite'
-  | 'google/gemini-2.0-flash-exp'
-  | 'google/gemini-2.5-flash-image'
-  // Lovable AI - OpenAI
-  | 'openai/gpt-5'
-  | 'openai/gpt-5-mini'
-  | 'openai/gpt-5-nano'
-  // Lovable AI - Claude
-  | 'claude-sonnet-4-5'
-  | 'claude-opus-4-1-20250805'
-  | 'claude-3-5-sonnet-20241022'
   // OpenAI Direct
   | 'gpt-5-2025-08-07'
   | 'gpt-5-mini-2025-08-07'
@@ -31,7 +17,13 @@ export type LLMModel =
   // Anthropic Direct - Legacy Models
   | 'claude-3-5-sonnet-20241022-direct'
   | 'claude-3-opus-20240229'
-  | 'claude-3-haiku-20240307';
+  | 'claude-3-haiku-20240307'
+  // Google Gemini Direct
+  | 'gemini-2.5-pro'
+  | 'gemini-2.5-flash'
+  | 'gemini-2.0-flash-exp'
+  | 'gemini-1.5-pro'
+  | 'gemini-1.5-flash';
 
 /**
  * Get the appropriate API endpoint based on the model
@@ -42,18 +34,16 @@ export function getLLMEndpoint(model: string): string {
     return 'https://api.anthropic.com/v1/messages';
   }
   
-  // Lovable AI Gateway models
-  if (model.startsWith('google/') || 
-      model.startsWith('openai/') || 
-      model.startsWith('claude-')) {
-    return 'https://ai.gateway.lovable.dev/v1/chat/completions';
-  }
-  
   // OpenAI Direct models
   if (model.startsWith('gpt-') || 
       model.startsWith('o3-') || 
       model.startsWith('o4-')) {
     return 'https://api.openai.com/v1/chat/completions';
+  }
+  
+  // Google Gemini Direct models
+  if (isGeminiDirect(model)) {
+    return 'https://generativelanguage.googleapis.com/v1beta/models';
   }
   
   throw new Error(`Unknown model provider for: ${model}`);
@@ -70,21 +60,19 @@ export function getAPIKey(model: string): string {
     return key;
   }
   
-  // Lovable AI Gateway models
-  if (model.startsWith('google/') || 
-      model.startsWith('openai/') || 
-      model.startsWith('claude-')) {
-    const key = Deno.env.get('LOVABLE_API_KEY');
-    if (!key) throw new Error('LOVABLE_API_KEY not configured');
-    return key;
-  }
-  
   // OpenAI Direct models
   if (model.startsWith('gpt-') || 
       model.startsWith('o3-') || 
       model.startsWith('o4-')) {
     const key = Deno.env.get('OPENAI_API_KEY');
     if (!key) throw new Error('OPENAI_API_KEY not configured');
+    return key;
+  }
+  
+  // Google Gemini Direct models
+  if (isGeminiDirect(model)) {
+    const key = Deno.env.get('GOOGLE_AI_API_KEY');
+    if (!key) throw new Error('GOOGLE_AI_API_KEY not configured');
     return key;
   }
   
@@ -100,6 +88,13 @@ export function isAnthropicDirect(model: string): boolean {
     /claude-.*-\d{8}/.test(model) ||  // claude-sonnet-4-20250514
     model.endsWith('-direct')          // claude-3-5-sonnet-20241022-direct
   );
+}
+
+/**
+ * Check if model is Google Gemini Direct API
+ */
+export function isGeminiDirect(model: string): boolean {
+  return model.startsWith('gemini-');
 }
 
 /**
@@ -128,6 +123,35 @@ export function prepareAnthropicRequest(messages: any[]): {
 }
 
 /**
+ * Convert OpenAI-style messages to Google Gemini format
+ */
+export function prepareGeminiRequest(messages: any[]): {
+  contents: any[];
+  systemInstruction?: { parts: { text: string }[] };
+} {
+  let systemPrompt: string | undefined;
+  const geminiContents: any[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      systemPrompt = msg.content;
+    } else {
+      geminiContents.push({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      });
+    }
+  }
+
+  const result: any = { contents: geminiContents };
+  if (systemPrompt) {
+    result.systemInstruction = { parts: [{ text: systemPrompt }] };
+  }
+
+  return result;
+}
+
+/**
  * Get the correct headers based on the model
  */
 export function getHeaders(model: string, apiKey: string): Record<string, string> {
@@ -140,7 +164,14 @@ export function getHeaders(model: string, apiKey: string): Record<string, string
     };
   }
   
-  // OpenAI and Lovable AI use standard Authorization header
+  // Google Gemini - API key goes in URL, not header
+  if (isGeminiDirect(model)) {
+    return {
+      'Content-Type': 'application/json',
+    };
+  }
+  
+  // OpenAI uses standard Authorization header
   return {
     'Authorization': `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
@@ -153,14 +184,14 @@ export function getHeaders(model: string, apiKey: string): Record<string, string
 export function getRecommendedModel(level: string): LLMModel {
   switch (level) {
     case 'level_1':
-      return 'claude-sonnet-4-5'; // Leadership - superior reasoning
+      return 'claude-sonnet-4-20250514'; // Leadership - Claude 4 Sonnet
     case 'level_2':
-      return 'openai/gpt-5'; // Strategy/Intelligence - powerful analysis
+      return 'gpt-5-2025-08-07'; // Strategy - GPT-5
     case 'level_3':
-      return 'google/gemini-2.5-flash'; // Execution - balanced
+      return 'gemini-2.5-flash'; // Execution - Gemini Flash
     case 'level_4':
-      return 'google/gemini-2.5-flash-lite'; // QA - fast and efficient
+      return 'gemini-2.0-flash-exp'; // QA - Gemini Experimental (fast)
     default:
-      return 'google/gemini-2.5-flash';
+      return 'gemini-2.5-flash';
   }
 }

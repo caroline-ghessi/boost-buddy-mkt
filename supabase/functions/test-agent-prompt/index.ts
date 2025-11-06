@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, isAnthropicDirect } from "../_shared/llm-router.ts";
+import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,8 +33,26 @@ serve(async (req) => {
 
     // Prepare request body based on model provider
     let requestBody: any;
+    let fullEndpoint: string;
 
-    if (isAnthropicDirect(selectedModel)) {
+    if (isGeminiDirect(selectedModel)) {
+      // Google Gemini API format
+      const geminiRequest = prepareGeminiRequest([
+        { role: 'system', content: system_prompt },
+        { role: 'user', content: test_message }
+      ]);
+      
+      requestBody = {
+        ...geminiRequest,
+        generationConfig: {
+          maxOutputTokens: 1000,
+          temperature: 0.7,
+        }
+      };
+      
+      fullEndpoint = `${endpoint}/${selectedModel}:generateContent?key=${apiKey}`;
+      
+    } else if (isAnthropicDirect(selectedModel)) {
       // Anthropic API format
       const allMessages = [
         { role: 'system', content: system_prompt },
@@ -49,8 +67,10 @@ serve(async (req) => {
         system: system,
         messages: anthropicMessages,
       };
+      fullEndpoint = endpoint;
+      
     } else {
-      // OpenAI/Lovable AI Gateway format
+      // OpenAI format
       requestBody = {
         model: selectedModel,
         messages: [
@@ -60,9 +80,10 @@ serve(async (req) => {
         max_tokens: 1000,
         temperature: 0.7
       };
+      fullEndpoint = endpoint;
     }
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(fullEndpoint, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify(requestBody),
@@ -80,12 +101,16 @@ serve(async (req) => {
     let aiResponse: string;
     let tokensUsed: number = 0;
     
-    if (isAnthropicDirect(selectedModel)) {
+    if (isGeminiDirect(selectedModel)) {
+      // Google Gemini format
+      aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+      tokensUsed = (data.usageMetadata?.promptTokenCount || 0) + (data.usageMetadata?.candidatesTokenCount || 0);
+    } else if (isAnthropicDirect(selectedModel)) {
       // Anthropic format
       aiResponse = data.content?.[0]?.text || 'No response generated';
       tokensUsed = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0);
     } else {
-      // OpenAI/Lovable AI format
+      // OpenAI format
       aiResponse = data.choices?.[0]?.message?.content || 'No response generated';
       tokensUsed = data.usage?.total_tokens || 0;
     }

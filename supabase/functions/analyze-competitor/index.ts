@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, isAnthropicDirect } from "../_shared/llm-router.ts";
+import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -144,9 +144,28 @@ Retorne em formato JSON estruturado:
 
     // Prepare request body based on model provider
     let requestBody: any;
+    let fullEndpoint: string;
     const systemMessage = agentConfig?.system_prompt || "Você é Thiago Costa, especialista em inteligência competitiva.";
 
-    if (isAnthropicDirect(model)) {
+    if (isGeminiDirect(model)) {
+      // Google Gemini API format
+      const geminiRequest = prepareGeminiRequest([
+        { role: "system", content: systemMessage },
+        { role: "user", content: analysisPrompt },
+      ]);
+      
+      requestBody = {
+        ...geminiRequest,
+        generationConfig: {
+          maxOutputTokens: agentConfig?.max_tokens || 2000,
+          temperature: agentConfig?.temperature || 0.7,
+          responseMimeType: "application/json",
+        }
+      };
+      
+      fullEndpoint = `${endpoint}/${model}:generateContent?key=${apiKey}`;
+      
+    } else if (isAnthropicDirect(model)) {
       // Anthropic API format
       const allMessages = [
         { role: "system", content: systemMessage },
@@ -161,8 +180,10 @@ Retorne em formato JSON estruturado:
         system: system,
         messages: anthropicMessages,
       };
+      fullEndpoint = endpoint;
+      
     } else {
-      // OpenAI/Lovable AI Gateway format
+      // OpenAI format
       requestBody = {
         model: model,
         messages: [
@@ -173,10 +194,11 @@ Retorne em formato JSON estruturado:
         max_tokens: agentConfig?.max_tokens || 2000,
         response_format: { type: "json_object" },
       };
+      fullEndpoint = endpoint;
     }
 
     // 5. Chamar LLM API (Thiago)
-    const lovableResponse = await fetch(endpoint, {
+    const lovableResponse = await fetch(fullEndpoint, {
       method: "POST",
       headers: headers,
       body: JSON.stringify(requestBody),

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, isAnthropicDirect } from "../_shared/llm-router.ts";
+import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,9 +115,26 @@ Forneça uma estratégia incluindo:
 
     // Prepare request body based on model provider
     let requestBody: any;
+    let fullEndpoint: string;
     const systemMessage = agentConfig?.system_prompt || "";
 
-    if (isAnthropicDirect(model)) {
+    if (isGeminiDirect(model)) {
+      // Google Gemini API format
+      const geminiRequest = prepareGeminiRequest([
+        { role: "system", content: systemMessage },
+        { role: "user", content: ricardoPrompt }
+      ]);
+      
+      requestBody = {
+        ...geminiRequest,
+        generationConfig: {
+          maxOutputTokens: 4096,
+        }
+      };
+      
+      fullEndpoint = `${endpoint}/${model}:generateContent?key=${apiKey}`;
+      
+    } else if (isAnthropicDirect(model)) {
       // Anthropic API format
       const allMessages = [
         { role: "system", content: systemMessage },
@@ -131,8 +148,10 @@ Forneça uma estratégia incluindo:
         system: system,
         messages: anthropicMessages,
       };
+      fullEndpoint = endpoint;
+      
     } else {
-      // OpenAI/Lovable AI Gateway format
+      // OpenAI format
       requestBody = {
         model: model,
         messages: [
@@ -141,9 +160,10 @@ Forneça uma estratégia incluindo:
         ],
         stream: false,
       };
+      fullEndpoint = endpoint;
     }
 
-    const lovableResponse = await fetch(endpoint, {
+    const lovableResponse = await fetch(fullEndpoint, {
       method: "POST",
       headers: headers,
       body: JSON.stringify(requestBody),

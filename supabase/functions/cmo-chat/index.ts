@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
-import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, isAnthropicDirect } from "../_shared/llm-router.ts";
+import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from "../_shared/llm-router.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -58,8 +58,27 @@ serve(async (req) => {
     // Prepare request body based on model provider
     let requestBody: any;
     let response: Response;
+    let fullEndpoint: string;
 
-    if (isAnthropicDirect(model)) {
+    if (isGeminiDirect(model)) {
+      // Google Gemini API format
+      const geminiRequest = prepareGeminiRequest([
+        { role: "system", content: systemPrompt + ragContext },
+        ...messages,
+      ]);
+      
+      requestBody = {
+        ...geminiRequest,
+        generationConfig: {
+          maxOutputTokens: 4096,
+          temperature: 0.7,
+        }
+      };
+      
+      // Google Gemini uses API key in URL
+      fullEndpoint = `${endpoint}/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+      
+    } else if (isAnthropicDirect(model)) {
       // Anthropic API format
       const allMessages = [
         { role: "system", content: systemPrompt + ragContext },
@@ -74,8 +93,10 @@ serve(async (req) => {
         messages: anthropicMessages,
         stream: true
       };
+      fullEndpoint = endpoint;
+      
     } else {
-      // OpenAI/Lovable AI Gateway format
+      // OpenAI format
       requestBody = {
         model: model,
         messages: [
@@ -84,10 +105,11 @@ serve(async (req) => {
         ],
         stream: true,
       };
+      fullEndpoint = endpoint;
     }
 
     // Call LLM API
-    response = await fetch(endpoint, {
+    response = await fetch(fullEndpoint, {
       method: "POST",
       headers: headers,
       body: JSON.stringify(requestBody),
