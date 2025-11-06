@@ -193,6 +193,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           level: Database["public"]["Enums"]["agent_level"]
+          llm_model: string | null
           max_tokens: number | null
           name: string
           role: string
@@ -213,6 +214,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           level: Database["public"]["Enums"]["agent_level"]
+          llm_model?: string | null
           max_tokens?: number | null
           name: string
           role: string
@@ -233,6 +235,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           level?: Database["public"]["Enums"]["agent_level"]
+          llm_model?: string | null
           max_tokens?: number | null
           name?: string
           role?: string
