@@ -57,11 +57,6 @@ export function useMetaMetrics() {
 
       if (error) throw error;
 
-      toast({
-        title: 'Meta Ads sincronizado',
-        description: `${data.campaignsProcessed} campanhas processadas com sucesso.`,
-      });
-
       // Reload cached metrics
       await loadCachedMetrics();
       

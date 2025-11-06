@@ -166,11 +166,13 @@ Deno.serve(async (req) => {
     for (const insight of metaData.data || []) {
       const data = insight as MetaInsightData;
       
-      // Extract conversions from actions array
+      // Extract conversions from actions array (including leads, messages, and engagement)
       let conversions = 0;
       if (data.actions) {
         const conversionActions = data.actions.filter(action => 
-          ['purchase', 'lead', 'complete_registration', 'submit_application'].includes(action.action_type)
+          ['purchase', 'lead', 'complete_registration', 'submit_application', 
+           'onsite_conversion.messaging_conversation_started_7d', 'onsite_conversion.lead_grouped',
+           'onsite_conversion.messaging_first_reply', 'omni_purchase'].includes(action.action_type)
         );
         conversions = conversionActions.reduce((sum, action) => sum + parseFloat(action.value || '0'), 0);
       }

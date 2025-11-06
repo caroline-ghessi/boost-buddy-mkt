@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const PerformanceDashboard = () => {
   const { analytics, ads: googleAds, isConnected, syncMetrics: syncGoogle } = useGoogleMetrics();
-  const { ads: metaAds, syncMetrics: syncMeta } = useMetaMetrics();
+  const { ads: metaAds, syncMetrics: syncMeta, refreshMetrics: refreshMeta, isConnected: metaConnected } = useMetaMetrics();
   const { instagram, linkedin, youtube, isLoading: socialLoading, syncMetrics: syncSocial } = useSocialMediaMetrics();
   const { toast } = useToast();
   
@@ -30,6 +30,7 @@ const PerformanceDashboard = () => {
     setIsSyncingMeta(true);
     try {
       await syncMeta();
+      await refreshMeta(); // Forçar reload após sync
       toast({
         title: "Meta Ads sincronizado",
         description: "Dados atualizados com sucesso!",
@@ -192,7 +193,7 @@ const PerformanceDashboard = () => {
     };
 
     loadHistoricalData();
-  }, [isSyncingMeta, isSyncingGoogle, isSyncingSocial]);
+  }, [metaAds, googleAds, isSyncingMeta, isSyncingGoogle, isSyncingSocial]);
 
   const trafficData = [
     { name: "Jan", organic: 420, paid: 380 },
@@ -226,7 +227,7 @@ const PerformanceDashboard = () => {
       <section className="flex-1 flex flex-col gap-6 overflow-y-auto">
         {/* Top Actions */}
         <div className="flex justify-between items-center">
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <Button 
               onClick={handleGoogleSync}
               disabled={isSyncingGoogle}
@@ -247,6 +248,11 @@ const PerformanceDashboard = () => {
               {isSyncingMeta ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
               Meta Ads
             </Button>
+            {metaAds && (
+              <span className="text-xs text-muted-foreground">
+                {metaAds.impressions.toLocaleString('pt-BR')} impressões
+              </span>
+            )}
             <Button 
               onClick={handleSocialSync}
               disabled={isSyncingSocial}
