@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ModelSelector } from "@/components/admin/ModelSelector";
 import { X, Upload, Trash2, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -207,17 +207,12 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onUploadPhoto
 
               <div>
                 <Label className="text-gray-400">Modelo LLM</Label>
-                <Select value={llmModel} onValueChange={setLlmModel}>
-                  <SelectTrigger className="mt-2 bg-[#2a2a2a] border-gray-600 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-4">GPT-4</SelectItem>
-                    <SelectItem value="gpt-3.5">GPT-3.5 Turbo</SelectItem>
-                    <SelectItem value="claude-3">Claude 3</SelectItem>
-                    <SelectItem value="dall-e-3">DALL-E 3</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="mt-2">
+                  <ModelSelector 
+                    value={llmModel} 
+                    onValueChange={setLlmModel} 
+                  />
+                </div>
               </div>
 
               <div>
