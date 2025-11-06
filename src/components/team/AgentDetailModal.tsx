@@ -428,40 +428,44 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
                 />
               </div>
 
-              <div className="bg-[#2a2a2a]/50 rounded-lg p-4">
-                <h4 className="font-semibold text-white mb-2">Informações do Agente</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Raça:</span>
-                    <span className="text-white">{agent.breed}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Trait:</span>
-                    <span className="text-white">{agent.breed_trait}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Experiência:</span>
-                    <span className="text-white">{agent.years_experience || 0} anos</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Time:</span>
-                    <span className="text-white">{agent.team}</span>
+              {!isCreating && (
+                <div className="bg-[#2a2a2a]/50 rounded-lg p-4">
+                  <h4 className="font-semibold text-white mb-2">Informações do Agente</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Raça:</span>
+                      <span className="text-white">{breed}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Trait:</span>
+                      <span className="text-white">{breedTrait}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Experiência:</span>
+                      <span className="text-white">{yearsExperience} anos</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Time:</span>
+                      <span className="text-white">{team}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 
           {/* Actions */}
           <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-700/50">
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Deletar Agente
-            </Button>
-            <div className="flex gap-3">
+            {!isCreating && (
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Deletar Agente
+              </Button>
+            )}
+            <div className={`flex gap-3 ${isCreating ? 'ml-auto' : ''}`}>
               <Button variant="outline" onClick={onClose} disabled={isSaving}>
                 Cancelar
               </Button>
@@ -470,7 +474,7 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
                 onClick={handleSave}
                 disabled={isSaving}
               >
-                {isSaving ? "Salvando..." : "Salvar Alterações"}
+                {isSaving ? (isCreating ? "Criando..." : "Salvando...") : (isCreating ? "Criar Agente" : "Salvar Alterações")}
               </Button>
             </div>
           </div>
