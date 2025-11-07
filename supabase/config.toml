@@ -1,5 +1,11 @@
 project_id = "uujalotsiwoeitcgnmzv"
 
+[functions.process-agent-task]
+verify_jwt = false
+
+[functions.auto-process-tasks]
+verify_jwt = false
+
 [functions.google-oauth-authorize]
 verify_jwt = true
 

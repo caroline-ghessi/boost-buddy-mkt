@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from "../_shared/llm-router.ts";
+import { buildAgentContext } from "../_shared/context-builder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,8 +83,27 @@ serve(async (req) => {
       console.log("✅ Campanha atualizada:", campaignId);
     }
 
-    // 2. Ricardo (CMO) analisa o brief
-    console.log("🤔 Ricardo analisando brief...");
+    // 2. Ricardo (CMO) analisa o brief com contexto enriquecido
+    console.log("🤔 Ricardo analisando brief com dados históricos...");
+    
+    // Buscar usuário da campanha
+    const { data: campaign } = await supabase
+      .from("campaigns")
+      .select("user_id")
+      .eq("id", campaignId)
+      .single();
+    
+    // Construir contexto enriquecido
+    const enrichedContext = await buildAgentContext({
+      userId: campaign?.user_id || "",
+      taskType: "campaign_strategy",
+      campaignId: campaignId,
+      query: `${brief.name} ${brief.objectives.join(" ")} ${brief.channels.join(" ")}`,
+      includeRAG: true,
+      includeMetrics: true,
+      includeCompetitors: true,
+      includeSocialMedia: true,
+    }, supabase);
     
     // Buscar prompt e modelo do Ricardo
     const { data: agentConfig } = await supabase
@@ -97,7 +117,13 @@ serve(async (req) => {
     const apiKey = getAPIKey(model);
     const headers = getHeaders(model, apiKey);
 
-    const ricardoPrompt = `${agentConfig?.system_prompt || ""}\n\nAnalise este brief de campanha e crie uma estratégia de execução detalhada:
+    const ricardoPrompt = `${agentConfig?.system_prompt || ""}
+
+${enrichedContext.fullContext}
+
+## Brief da Campanha para Análise:
+
+Analise este brief de campanha e crie uma estratégia de execução detalhada BASEADA NOS DADOS acima:
 
 Campanha: ${brief.name}
 Objetivos: ${brief.objectives.join(", ")}
@@ -221,7 +247,13 @@ Forneça uma estratégia incluindo:
             context: {
               brief,
               ricardoAnalysis,
-              phase: "execution"
+              phase: "execution",
+              enrichedContext: {
+                hasRAG: !!enrichedContext.ragContext,
+                hasMetrics: !!enrichedContext.metricsContext,
+                hasCompetitors: !!enrichedContext.competitorsContext,
+                hasSocialMedia: !!enrichedContext.socialMediaContext,
+              }
             }
           }),
         });
