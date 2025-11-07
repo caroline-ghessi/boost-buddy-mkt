@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.agent-executor]
 verify_jwt = false
 
+[functions.autonomous-planner]
+verify_jwt = false
+
 [functions.google-oauth-authorize]
 verify_jwt = true
 
