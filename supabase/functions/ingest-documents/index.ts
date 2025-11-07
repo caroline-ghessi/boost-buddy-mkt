@@ -108,14 +108,20 @@ serve(async (req) => {
     }
 
     // Update document status
-    await supabase
+    const { error: updateError } = await supabase
       .from('rag_documents')
       .update({ 
-        status: 'ready',
+        status: 'completed',
         chunk_count: totalChunks,
+        last_processed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq('id', documentId);
+
+    if (updateError) {
+      console.error("Error updating document status:", updateError);
+      throw updateError;
+    }
 
     console.log("Document processing complete:", documentId);
 
