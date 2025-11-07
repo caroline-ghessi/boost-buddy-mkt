@@ -1033,7 +1033,9 @@ export type Database = {
           file_type: string | null
           file_url: string | null
           id: string
+          last_processed_at: string | null
           metadata: Json | null
+          needs_reprocessing: boolean | null
           status: string | null
           tags: string[] | null
           title: string
@@ -1049,7 +1051,9 @@ export type Database = {
           file_type?: string | null
           file_url?: string | null
           id?: string
+          last_processed_at?: string | null
           metadata?: Json | null
+          needs_reprocessing?: boolean | null
           status?: string | null
           tags?: string[] | null
           title: string
@@ -1065,7 +1069,9 @@ export type Database = {
           file_type?: string | null
           file_url?: string | null
           id?: string
+          last_processed_at?: string | null
           metadata?: Json | null
+          needs_reprocessing?: boolean | null
           status?: string | null
           tags?: string[] | null
           title?: string
@@ -1218,6 +1224,7 @@ export type Database = {
           similarity: number
         }[]
       }
+      reprocess_document: { Args: { document_id: string }; Returns: Json }
     }
     Enums: {
       agent_level: "level_1" | "level_2" | "level_3" | "level_4"

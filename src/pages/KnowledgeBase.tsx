@@ -13,7 +13,7 @@ import { DocumentStatsCard } from "@/components/rag/DocumentStatsCard";
 import { EditDocumentModal } from "@/components/rag/EditDocumentModal";
 import { CATEGORY_OPTIONS } from "@/lib/ragCategories";
 import { toast } from "sonner";
-import { FileText, Search, Trash2, Eye, Loader2, CheckCircle, XCircle, Clock, Edit, Filter, Tag as TagIcon } from "lucide-react";
+import { FileText, Search, Trash2, Eye, Loader2, CheckCircle, XCircle, Clock, Edit, Filter, Tag as TagIcon, AlertCircle } from "lucide-react";
 
 interface RAGDocument {
   id: string;
@@ -26,6 +26,7 @@ interface RAGDocument {
   created_at: string;
   category: string | null;
   tags: string[] | null;
+  needs_reprocessing?: boolean;
 }
 
 interface RAGChunk {
@@ -333,7 +334,15 @@ export default function KnowledgeBase() {
                           ))}
                         </div>
                       </div>
-                      {getStatusBadge(doc.status)}
+                      <div className="flex gap-2">
+                        {getStatusBadge(doc.status)}
+                        {doc.needs_reprocessing && (
+                          <Badge variant="secondary">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Reprocessar
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>

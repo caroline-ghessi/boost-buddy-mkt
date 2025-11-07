@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle, X, RefreshCw } from "lucide-react";
 import { CATEGORY_OPTIONS } from "@/lib/ragCategories";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useReprocessDocument } from "@/hooks/useReprocessDocument";
 
 interface EditDocumentModalProps {
   document: {
@@ -18,6 +20,7 @@ interface EditDocumentModalProps {
     description: string | null;
     category: string | null;
     tags: string[] | null;
+    needs_reprocessing?: boolean;
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,6 +34,7 @@ export function EditDocumentModal({ document, open, onOpenChange, onSave }: Edit
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const reprocessDocument = useReprocessDocument();
 
   useEffect(() => {
     if (document) {
@@ -90,6 +94,15 @@ export function EditDocumentModal({ document, open, onOpenChange, onSave }: Edit
             Atualize as informações e categorização do documento
           </DialogDescription>
         </DialogHeader>
+
+        {document?.needs_reprocessing && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Este documento precisa ser reprocessado. Clique no botão de reprocessar abaixo.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
@@ -159,10 +172,26 @@ export function EditDocumentModal({ document, open, onOpenChange, onSave }: Edit
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <div className="flex gap-2 flex-1">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            {document?.needs_reprocessing && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  reprocessDocument.mutate(document.id);
+                  onOpenChange(false);
+                }}
+                disabled={reprocessDocument.isPending}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {reprocessDocument.isPending ? "Reprocessando..." : "Reprocessar"}
+              </Button>
+            )}
+          </div>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? "Salvando..." : "Salvar"}
           </Button>
