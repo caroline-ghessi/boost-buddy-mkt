@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RAGUploadWidget } from "@/components/rag/RAGUploadWidget";
 import { DocumentStatsCard } from "@/components/rag/DocumentStatsCard";
 import { EditDocumentModal } from "@/components/rag/EditDocumentModal";
+import { useReprocessDocument } from "@/hooks/useReprocessDocument";
 import { CATEGORY_OPTIONS } from "@/lib/ragCategories";
 import { toast } from "sonner";
-import { FileText, Search, Trash2, Eye, Loader2, CheckCircle, XCircle, Clock, Edit, Filter, Tag as TagIcon, AlertCircle } from "lucide-react";
+import { FileText, Search, Trash2, Eye, Loader2, CheckCircle, XCircle, Clock, Edit, Filter, Tag as TagIcon, AlertCircle, RefreshCw } from "lucide-react";
 
 interface RAGDocument {
   id: string;
@@ -50,6 +51,8 @@ export default function KnowledgeBase() {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterTag, setFilterTag] = useState<string>("");
   const [titleFilter, setTitleFilter] = useState("");
+  
+  const reprocessMutation = useReprocessDocument();
 
   useEffect(() => {
     loadDocuments();
@@ -70,19 +73,39 @@ export default function KnowledgeBase() {
       )
       .subscribe();
 
+    // Check for stuck documents every 30 seconds
+    const checkStuckDocuments = setInterval(() => {
+      const now = Date.now();
+      documents.forEach(doc => {
+        if (doc.status === 'processing') {
+          const createdAt = new Date(doc.created_at).getTime();
+          const minutesOld = (now - createdAt) / 1000 / 60;
+          
+          if (minutesOld > 5) {
+            console.warn(`Document ${doc.id} stuck in processing for ${minutesOld.toFixed(1)} minutes`);
+          }
+        }
+      });
+    }, 30000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(checkStuckDocuments);
     };
-  }, []);
+  }, [documents]);
 
   const loadDocuments = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log("Loading documents for user:", user?.id);
+      
       const { data, error } = await supabase
         .from('rag_documents')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
+      console.log("Documents loaded:", data?.length || 0);
       setDocuments(data || []);
       setFilteredDocuments(data || []);
     } catch (error) {
@@ -190,7 +213,7 @@ export default function KnowledgeBase() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'ready': return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'completed': return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'processing': return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
       case 'error': return <XCircle className="h-4 w-4 text-red-500" />;
       default: return <Clock className="h-4 w-4 text-yellow-500" />;
@@ -199,7 +222,7 @@ export default function KnowledgeBase() {
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      ready: "default",
+      completed: "default",
       processing: "secondary",
       error: "destructive",
       pending: "outline"
@@ -366,6 +389,17 @@ export default function KnowledgeBase() {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        {(doc.status === 'error' || doc.status === 'processing') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => reprocessMutation.mutate(doc.id)}
+                            disabled={reprocessMutation.isPending}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Reprocessar
+                          </Button>
+                        )}
                         {doc.chunk_count > 0 && (
                           <Button
                             variant="outline"
