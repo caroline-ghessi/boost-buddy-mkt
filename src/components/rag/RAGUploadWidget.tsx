@@ -74,8 +74,29 @@ export function RAGUploadWidget() {
       
       if (!user) {
         toast.error("Você precisa estar autenticado");
+        setIsUploading(false);
         return;
       }
+
+      // Upload file to storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError, data: uploadData } = await supabase.storage
+        .from('rag-documents')
+        .upload(fileName, selectedFile);
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        toast.error('Erro ao fazer upload do arquivo');
+        setIsUploading(false);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('rag-documents')
+        .getPublicUrl(fileName);
 
       // Insert document into database
       const { data: docData, error } = await supabase
@@ -88,9 +109,11 @@ export function RAGUploadWidget() {
           tags: tags.length > 0 ? tags : null,
           file_type: selectedFile.type,
           file_size: selectedFile.size,
+          file_url: publicUrl,
           status: 'pending',
           metadata: {
             original_filename: selectedFile.name,
+            storage_path: fileName,
             uploaded_at: new Date().toISOString()
           }
         })
@@ -98,8 +121,8 @@ export function RAGUploadWidget() {
         .single();
 
       if (error || !docData) {
-        console.error('Upload error:', error);
-        toast.error('Erro ao fazer upload do documento');
+        console.error('Database insert error:', error);
+        toast.error('Erro ao salvar informações do documento');
         setIsUploading(false);
         return;
       }
@@ -115,9 +138,12 @@ export function RAGUploadWidget() {
         if (processError) {
           console.error('Processing error:', processError);
           toast.error('Erro ao processar documento');
+        } else {
+          toast.success('Documento processado com sucesso!');
         }
       } catch (err) {
         console.error('Processing invocation error:', err);
+        toast.error('Erro ao processar documento');
       }
 
       // Reset form
