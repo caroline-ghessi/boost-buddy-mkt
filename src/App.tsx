@@ -21,6 +21,7 @@ import CompetitiveIntelligence from "./pages/CompetitiveIntelligence";
 import CompetitorDetail from "./pages/CompetitorDetail";
 import AdminSyncStatus from "./pages/AdminSyncStatus";
 import AgentsPerformance from "./pages/AgentsPerformance";
+import AutonomousSystem from "./pages/AutonomousSystem";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -57,6 +58,7 @@ const App = () => (
             {/* Admin Routes */}
             <Route path="/admin/sync-status" element={<ProtectedRoute><AppLayout><AdminSyncStatus /></AppLayout></ProtectedRoute>} />
             <Route path="/admin/agents-performance" element={<ProtectedRoute><AppLayout><AgentsPerformance /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/autonomous-system" element={<ProtectedRoute><AppLayout><AutonomousSystem /></AppLayout></ProtectedRoute>} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

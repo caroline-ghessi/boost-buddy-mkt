@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   Home, MessageSquare, BarChart3, Users, Search, 
-  Plug, BookOpen, Calendar, LogOut, Activity 
+  Plug, BookOpen, Calendar, LogOut, Activity, Brain 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,6 +19,7 @@ const menuItems = [
 
 const adminItems = [
   { path: "/admin/agents-performance", label: "Performance Agentes", icon: Activity },
+  { path: "/admin/autonomous-system", label: "Sistema Autônomo", icon: Brain },
   { path: "/admin/sync-status", label: "Status de Sync", icon: Plug },
 ];
 

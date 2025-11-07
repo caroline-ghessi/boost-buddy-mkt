@@ -1521,6 +1521,32 @@ export type Database = {
           similarity: number
         }[]
       }
+      pgmq_archive_message: {
+        Args: { message_id: number; queue_name: string }
+        Returns: boolean
+      }
+      pgmq_delete_message: {
+        Args: { message_id: number; queue_name: string }
+        Returns: boolean
+      }
+      pgmq_read_messages: {
+        Args: {
+          quantity?: number
+          queue_name: string
+          visibility_timeout?: number
+        }
+        Returns: {
+          enqueued_at: string
+          message: Json
+          msg_id: number
+          read_ct: number
+          vt: string
+        }[]
+      }
+      pgmq_send_message: {
+        Args: { message: Json; queue_name: string }
+        Returns: number
+      }
       reprocess_document: { Args: { document_id: string }; Returns: Json }
     }
     Enums: {

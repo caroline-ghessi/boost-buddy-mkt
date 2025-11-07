@@ -142,9 +142,9 @@ serve(async (req) => {
       console.error('Error creating job record:', jobError);
     } else {
       // Send to pgmq queue
-      const { error: enqueueError } = await supabase.rpc('pgmq_send', {
+      const { error: enqueueError } = await supabase.rpc('pgmq_send_message', {
         queue_name: 'agent_jobs_queue',
-        msg: jobPayload
+        message: jobPayload
       });
 
       if (enqueueError) {
@@ -228,9 +228,9 @@ serve(async (req) => {
 
         if (!subtaskJobError) {
           // Send to pgmq queue
-          await supabase.rpc('pgmq_send', {
+          await supabase.rpc('pgmq_send_message', {
             queue_name: 'agent_jobs_queue',
-            msg: subtaskJobPayload
+            message: subtaskJobPayload
           });
           console.log(`Enqueued job ${subtaskJobPayload.job_id} for subtask ${level3Task.id}`);
         }

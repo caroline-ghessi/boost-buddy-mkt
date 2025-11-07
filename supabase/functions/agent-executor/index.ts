@@ -20,12 +20,13 @@ serve(async (req) => {
 
     console.log(`Agent Executor: Reading up to ${batchSize} messages from queue`);
 
-    // Read messages from pgmq queue
-    const { data: messages, error: readError } = await supabase.rpc('pgmq_read', {
-      queue_name: 'agent_jobs_queue',
-      vt: visibilityTimeout, // visibility timeout in seconds
-      qty: batchSize
-    });
+    // Read messages from pgmq queue using wrapper function
+    const { data: messages, error: readError } = await supabase
+      .rpc('pgmq_read_messages', {
+        queue_name: 'agent_jobs_queue',
+        visibility_timeout: visibilityTimeout,
+        quantity: batchSize
+      });
 
     if (readError) {
       console.error('Error reading from queue:', readError);
@@ -90,9 +91,9 @@ serve(async (req) => {
           .eq('id', jobData.job_id);
 
         // Delete message from queue
-        await supabase.rpc('pgmq_delete', {
+        await supabase.rpc('pgmq_delete_message', {
           queue_name: 'agent_jobs_queue',
-          msg_id: messageId
+          message_id: messageId
         });
 
         console.log(`✓ Job ${jobData.job_id} completed successfully`);
@@ -121,9 +122,9 @@ serve(async (req) => {
             .eq('id', jobData.job_id);
 
           // Delete from queue
-          await supabase.rpc('pgmq_delete', {
+          await supabase.rpc('pgmq_delete_message', {
             queue_name: 'agent_jobs_queue',
-            msg_id: messageId
+            message_id: messageId
           });
 
           console.log(`Job ${jobData.job_id} moved to dead letter queue (${attempts}/${maxAttempts} attempts)`);
@@ -138,9 +139,9 @@ serve(async (req) => {
             .eq('id', jobData.job_id);
 
           // Delete current message, will be re-enqueued
-          await supabase.rpc('pgmq_delete', {
+          await supabase.rpc('pgmq_delete_message', {
             queue_name: 'agent_jobs_queue',
-            msg_id: messageId
+            message_id: messageId
           });
 
           console.log(`Job ${jobData.job_id} will retry (${attempts}/${maxAttempts} attempts)`);
