@@ -185,7 +185,7 @@ export type Database = {
       agent_configs: {
         Row: {
           agent_id: string
-          avatar: string
+          avatar: string | null
           breed: string
           breed_trait: string
           created_at: string
@@ -206,7 +206,7 @@ export type Database = {
         }
         Insert: {
           agent_id: string
-          avatar: string
+          avatar?: string | null
           breed: string
           breed_trait: string
           created_at?: string
@@ -227,7 +227,7 @@ export type Database = {
         }
         Update: {
           agent_id?: string
-          avatar?: string
+          avatar?: string | null
           breed?: string
           breed_trait?: string
           created_at?: string

@@ -144,7 +144,10 @@ export function useAgents() {
           upsert: true
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Supabase storage error:', uploadError);
+        throw new Error(`Falha no upload: ${uploadError.message}`);
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('agent-assets')
@@ -153,12 +156,13 @@ export function useAgents() {
       return publicUrl;
     } catch (error) {
       console.error('Error uploading photo:', error);
+      const errorMessage = error instanceof Error ? error.message : "Não foi possível fazer upload da foto";
       toast({
         title: "Erro no upload",
-        description: "Não foi possível fazer upload da foto",
+        description: errorMessage,
         variant: "destructive",
       });
-      return null;
+      throw error; // Propagar erro ao invés de retornar null
     }
   };
 

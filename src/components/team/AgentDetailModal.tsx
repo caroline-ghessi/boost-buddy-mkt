@@ -94,6 +94,26 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
       return;
     }
 
+    // Validar se upload ainda está em andamento
+    if (isUploading) {
+      toast({
+        title: "Upload em andamento",
+        description: "Aguarde o upload da foto terminar antes de salvar",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar se usuário selecionou arquivo mas upload falhou
+    if (previewImageUrl && !uploadedImageUrl && !agent?.avatar) {
+      toast({
+        title: "Upload não concluído",
+        description: "A foto não foi carregada corretamente. Tente fazer upload novamente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -194,8 +214,8 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
       if (publicUrl) {
         setUploadedImageUrl(publicUrl);
         toast({
-          title: "Foto carregada",
-          description: "Clique em 'Salvar Alterações' para aplicar",
+          title: "✅ Foto carregada com sucesso",
+          description: isCreating ? "Agora você pode criar o agente" : "Clique em 'Salvar Alterações' para aplicar",
         });
       }
     } catch (error) {
@@ -472,9 +492,9 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
               <Button 
                 className="bg-[#A1887F] hover:bg-[#8D6E63]" 
                 onClick={handleSave}
-                disabled={isSaving}
+                disabled={isSaving || isUploading}
               >
-                {isSaving ? (isCreating ? "Criando..." : "Salvando...") : (isCreating ? "Criar Agente" : "Salvar Alterações")}
+                {isUploading ? "Upload em andamento..." : (isSaving ? (isCreating ? "Criando..." : "Salvando...") : (isCreating ? "Criar Agente" : "Salvar Alterações"))}
               </Button>
             </div>
           </div>
