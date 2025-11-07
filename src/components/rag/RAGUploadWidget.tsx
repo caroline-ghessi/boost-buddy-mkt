@@ -110,7 +110,7 @@ export function RAGUploadWidget() {
           file_type: selectedFile.type,
           file_size: selectedFile.size,
           file_url: publicUrl,
-          status: 'pending',
+          status: 'processing',
           metadata: {
             original_filename: selectedFile.name,
             storage_path: fileName,
