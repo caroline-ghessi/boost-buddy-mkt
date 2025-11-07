@@ -18,6 +18,7 @@ import CampaignReview from "./pages/CampaignReview";
 import BudgetPlanning from "./pages/BudgetPlanning";
 import CompetitiveIntelligence from "./pages/CompetitiveIntelligence";
 import CompetitorDetail from "./pages/CompetitorDetail";
+import AdminSyncStatus from "./pages/AdminSyncStatus";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -50,6 +51,9 @@ const App = () => (
             {/* Competitive Intelligence Routes - SPRINT 7 */}
             <Route path="/competitive-intelligence" element={<ProtectedRoute><AppLayout><CompetitiveIntelligence /></AppLayout></ProtectedRoute>} />
             <Route path="/competitive-intelligence/:competitorName" element={<ProtectedRoute><AppLayout><CompetitorDetail /></AppLayout></ProtectedRoute>} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin/sync-status" element={<ProtectedRoute><AppLayout><AdminSyncStatus /></AppLayout></ProtectedRoute>} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

@@ -12,18 +12,17 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  let jobRunId: string | null = null;
+
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Missing authorization header');
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Get user from auth header
     const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
@@ -31,19 +30,34 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { startDate, endDate } = await req.json();
+    const { startDate: reqStartDate, endDate: reqEndDate, automated = false } = await req.json().catch(() => ({}));
     
-    // Default to last 30 days if not provided
-    const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const end = endDate || new Date().toISOString().split('T')[0];
+    // Fase 3: Janela de reprocessamento de 7 dias
+    const end = reqEndDate || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const start = reqStartDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     console.log(`Syncing GA4 data for user ${user.id} from ${start} to ${end}`);
 
-    // Get valid access token
+    // Criar registro de execução
+    const { data: jobRun, error: jobRunError } = await supabase
+      .from('sync_job_runs')
+      .insert({
+        job_name: automated ? 'daily-google-analytics-sync' : 'manual-google-analytics-sync',
+        source: 'google_analytics',
+        user_id: user.id,
+        status: 'running',
+        metadata: { startDate: start, endDate: end, automated }
+      })
+      .select()
+      .single();
+
+    if (!jobRunError) {
+      jobRunId = jobRun.id;
+    }
+
     const accessToken = await getValidAccessToken(supabase, user.id);
     const propertyId = Deno.env.get('GOOGLE_ANALYTICS_PROPERTY_ID');
 
-    // Call Google Analytics Data API
     const analyticsResponse = await fetch(
       `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
       {
@@ -54,10 +68,7 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           dateRanges: [{ startDate: start, endDate: end }],
-          dimensions: [
-            { name: 'date' },
-            { name: 'sessionDefaultChannelGrouping' }
-          ],
+          dimensions: [{ name: 'date' }, { name: 'sessionDefaultChannelGrouping' }],
           metrics: [
             { name: 'sessions' },
             { name: 'totalUsers' },
@@ -80,7 +91,6 @@ serve(async (req) => {
     const analyticsData = await analyticsResponse.json();
     console.log('GA4 data received, rows:', analyticsData.rows?.length || 0);
 
-    // Process and aggregate data by date
     const metricsByDate: Record<string, any> = {};
 
     for (const row of analyticsData.rows || []) {
@@ -109,15 +119,13 @@ serve(async (req) => {
       dateMetrics.bounce_rate += parseFloat(metrics[4].value);
       dateMetrics.avg_session_duration += parseFloat(metrics[5].value);
       dateMetrics.conversions += parseInt(metrics[6].value);
-
-      // Track traffic sources
       dateMetrics.traffic_sources[channel] = {
         sessions: parseInt(metrics[0].value),
         users: parseInt(metrics[1].value),
       };
     }
 
-    // Insert or update metrics in database
+    // Fase 3: Upsert para reprocessamento
     for (const [date, metrics] of Object.entries(metricsByDate)) {
       const conversion_rate = metrics.sessions > 0 
         ? parseFloat((metrics.conversions / metrics.sessions * 100).toFixed(2))
@@ -143,7 +151,6 @@ serve(async (req) => {
         });
     }
 
-    // Calculate aggregated totals
     const totals = Object.values(metricsByDate).reduce((acc: any, day: any) => ({
       sessions: acc.sessions + day.sessions,
       users: acc.users + day.users,
@@ -154,6 +161,19 @@ serve(async (req) => {
 
     console.log('GA4 sync completed successfully');
 
+    // Atualizar job run com sucesso
+    if (jobRunId) {
+      await supabase
+        .from('sync_job_runs')
+        .update({
+          status: 'success',
+          finished_at: new Date().toISOString(),
+          rows_processed: Object.keys(metricsByDate).length,
+          metadata: totals
+        })
+        .eq('id', jobRunId);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -161,20 +181,28 @@ serve(async (req) => {
         totals,
         days: Object.keys(metricsByDate).length,
       }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
 
   } catch (error) {
     console.error('Error in google-analytics-sync:', error);
+    
+    // Atualizar job run com erro
+    if (jobRunId) {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      await supabase
+        .from('sync_job_runs')
+        .update({
+          status: 'failed',
+          finished_at: new Date().toISOString(),
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        })
+        .eq('id', jobRunId);
+    }
+    
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });

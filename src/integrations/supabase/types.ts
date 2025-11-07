@@ -1175,6 +1175,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_job_runs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          job_name: string
+          metadata: Json | null
+          rows_processed: number | null
+          source: string
+          started_at: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          job_name: string
+          metadata?: Json | null
+          rows_processed?: number | null
+          source: string
+          started_at?: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          job_name?: string
+          metadata?: Json | null
+          rows_processed?: number | null
+          source?: string
+          started_at?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1198,7 +1240,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_sync_health: {
+        Row: {
+          avg_duration_seconds: number | null
+          failed_count_24h: number | null
+          failed_count_7d: number | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          source: string | null
+          success_count_24h: number | null
+          success_count_7d: number | null
+          total_rows_7d: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {

@@ -17,29 +17,26 @@ interface MetaInsightData {
   ctr: string;
   cpc: string;
   cpm: string;
-  actions?: Array<{
-    action_type: string;
-    value: string;
-  }>;
+  actions?: Array<{ action_type: string; value: string; }>;
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+  let jobRunId: string | null = null;
+
   try {
     console.log('Starting Meta Ads sync...');
 
-    // Authenticate user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       throw new Error('Missing authorization header');
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -51,7 +48,33 @@ Deno.serve(async (req) => {
 
     console.log(`Authenticated user: ${user.id}`);
 
-    // Get Meta credentials from secrets
+    const { startDate: reqStartDate, endDate: reqEndDate, automated = false } = await req.json().catch(() => ({}));
+    
+    // Fase 3: Janela de reprocessamento de 7 dias
+    const end = reqEndDate ? new Date(reqEndDate) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const start = reqStartDate ? new Date(reqStartDate) : new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    const since = start.toISOString().split('T')[0];
+    const until = end.toISOString().split('T')[0];
+
+    // Criar registro de execução
+    const adminSupabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const { data: jobRun, error: jobRunError } = await adminSupabase
+      .from('sync_job_runs')
+      .insert({
+        job_name: automated ? 'daily-meta-ads-sync' : 'manual-meta-ads-sync',
+        source: 'meta_ads',
+        user_id: user.id,
+        status: 'running',
+        metadata: { startDate: since, endDate: until, automated }
+      })
+      .select()
+      .single();
+
+    if (!jobRunError) {
+      jobRunId = jobRun.id;
+    }
+
     const metaAccessToken = Deno.env.get('META_ACCESS_TOKEN');
     let metaAdAccountId = Deno.env.get('META_AD_ACCOUNT_ID');
 
@@ -59,78 +82,13 @@ Deno.serve(async (req) => {
       throw new Error('Meta credentials not configured');
     }
 
-    // Ensure account ID has the 'act_' prefix required by Meta API
     if (!metaAdAccountId.startsWith('act_')) {
       metaAdAccountId = `act_${metaAdAccountId}`;
-      console.log(`Added 'act_' prefix to account ID: ${metaAdAccountId}`);
     }
-
-    // Validate token permissions first
-    console.log('Validating Meta access token permissions...');
-    const debugUrl = `https://graph.facebook.com/v22.0/debug_token?input_token=${metaAccessToken}&access_token=${metaAccessToken}`;
-    const debugResponse = await fetch(debugUrl);
-    
-    if (debugResponse.ok) {
-      const debugData = await debugResponse.json();
-      console.log('Token info:', JSON.stringify({
-        app_id: debugData.data?.app_id,
-        is_valid: debugData.data?.is_valid,
-        scopes: debugData.data?.scopes,
-        expires_at: debugData.data?.expires_at,
-      }));
-
-      // Check required scopes
-      const requiredScopes = ['ads_read', 'ads_management'];
-      const tokenScopes = debugData.data?.scopes || [];
-      const missingScopes = requiredScopes.filter(scope => !tokenScopes.includes(scope));
-      
-      if (missingScopes.length > 0) {
-        throw new Error(`Token missing required permissions: ${missingScopes.join(', ')}. Please regenerate token with ads_read and ads_management permissions.`);
-      }
-    } else {
-      console.warn('Could not validate token, proceeding anyway...');
-    }
-
-    // Test account access
-    console.log(`Testing access to account: ${metaAdAccountId}`);
-    const testUrl = `https://graph.facebook.com/v22.0/${metaAdAccountId}?fields=id,name,account_status&access_token=${metaAccessToken}`;
-    const testResponse = await fetch(testUrl);
-    
-    if (!testResponse.ok) {
-      const errorText = await testResponse.text();
-      console.error('Account access test failed:', errorText);
-      throw new Error(`Cannot access Meta Ad Account ${metaAdAccountId}. Error: ${errorText}. Please verify: 1) Token has correct permissions (ads_read, ads_management), 2) Account ID is correct, 3) You have access to this ad account`);
-    }
-
-    const accountInfo = await testResponse.json();
-    console.log(`Successfully connected to account: ${accountInfo.name} (${accountInfo.id})`);
-
-
-    // Parse date range from request
-    const { startDate, endDate } = await req.json().catch(() => ({}));
-    
-    const end = endDate ? new Date(endDate) : new Date();
-    const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
-    const since = start.toISOString().split('T')[0];
-    const until = end.toISOString().split('T')[0];
 
     console.log(`Fetching Meta Ads data from ${since} to ${until}`);
 
-    // Build Meta Graph API request
-    const fields = [
-      'campaign_id',
-      'campaign_name',
-      'impressions',
-      'reach',
-      'clicks',
-      'spend',
-      'ctr',
-      'cpc',
-      'cpm',
-      'actions',
-      'action_values'
-    ].join(',');
+    const fields = ['campaign_id', 'campaign_name', 'impressions', 'reach', 'clicks', 'spend', 'ctr', 'cpc', 'cpm', 'actions', 'action_values'].join(',');
 
     const apiUrl = new URL(`https://graph.facebook.com/v22.0/${metaAdAccountId}/insights`);
     apiUrl.searchParams.set('fields', fields);
@@ -138,8 +96,6 @@ Deno.serve(async (req) => {
     apiUrl.searchParams.set('time_increment', '1');
     apiUrl.searchParams.set('time_range', JSON.stringify({ since, until }));
     apiUrl.searchParams.set('access_token', metaAccessToken);
-
-    console.log('Calling Meta Graph API...');
 
     const metaResponse = await fetch(apiUrl.toString());
     
@@ -152,21 +108,12 @@ Deno.serve(async (req) => {
     const metaData = await metaResponse.json();
     console.log(`Received ${metaData.data?.length || 0} campaign insights from Meta`);
 
-    // Process and store metrics
     let processedCampaigns = 0;
-    const totals = {
-      impressions: 0,
-      reach: 0,
-      clicks: 0,
-      cost: 0,
-      conversions: 0,
-      ctr: 0,
-    };
+    const totals = { impressions: 0, reach: 0, clicks: 0, cost: 0, conversions: 0, ctr: 0 };
 
     for (const insight of metaData.data || []) {
       const data = insight as MetaInsightData;
       
-      // Extract conversions from actions array (including leads, messages, and engagement)
       let conversions = 0;
       if (data.actions) {
         const conversionActions = data.actions.filter(action => 
@@ -188,7 +135,7 @@ Deno.serve(async (req) => {
       const conversionRate = clicks > 0 ? (conversions / clicks) * 100 : 0;
       const costPerConversion = conversions > 0 ? cost / conversions : 0;
 
-      // Upsert into database
+      // Fase 3: Upsert para reprocessamento
       const { error: upsertError } = await supabase
         .from('meta_ads_metrics')
         .upsert({
@@ -206,10 +153,7 @@ Deno.serve(async (req) => {
           conversions,
           conversion_rate: conversionRate,
           cost_per_conversion: costPerConversion,
-          metadata: {
-            actions: data.actions || [],
-            synced_at: new Date().toISOString(),
-          },
+          metadata: { actions: data.actions || [], synced_at: new Date().toISOString() },
         }, {
           onConflict: 'user_id,campaign_id,date',
         });
@@ -219,7 +163,6 @@ Deno.serve(async (req) => {
         throw upsertError;
       }
 
-      // Add to totals
       totals.impressions += impressions;
       totals.reach += reach;
       totals.clicks += clicks;
@@ -231,6 +174,19 @@ Deno.serve(async (req) => {
     totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
 
     console.log(`Successfully processed ${processedCampaigns} campaign insights`);
+
+    // Atualizar job run com sucesso
+    if (jobRunId) {
+      await adminSupabase
+        .from('sync_job_runs')
+        .update({
+          status: 'success',
+          finished_at: new Date().toISOString(),
+          rows_processed: processedCampaigns,
+          metadata: totals
+        })
+        .eq('id', jobRunId);
+    }
 
     return new Response(
       JSON.stringify({
@@ -244,15 +200,23 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error in meta-ads-sync:', error);
+    
+    // Atualizar job run com erro
+    if (jobRunId) {
+      const adminSupabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      await adminSupabase
+        .from('sync_job_runs')
+        .update({
+          status: 'failed',
+          finished_at: new Date().toISOString(),
+          error_message: error?.message || 'Unknown error'
+        })
+        .eq('id', jobRunId);
+    }
+    
     return new Response(
-      JSON.stringify({ 
-        error: error?.message || 'Unknown error',
-        details: error?.toString() || '' 
-      }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      JSON.stringify({ error: error?.message || 'Unknown error', details: error?.toString() || '' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
