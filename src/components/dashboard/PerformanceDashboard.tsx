@@ -1,36 +1,110 @@
-import { TrendingUp, Eye, DollarSign, MousePointerClick, Calendar, Download, Instagram, Linkedin, Youtube, RefreshCw, Loader2 } from "lucide-react";
+import { TrendingUp, Eye, DollarSign, MousePointerClick, Download, Instagram, Linkedin, Youtube, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/analytics/MetricCard";
 import { ChartCard } from "@/components/analytics/ChartCard";
 import { CampaignTable } from "@/components/analytics/CampaignTable";
 import { InsightsAgentSidebar } from "@/components/analytics/InsightsAgentSidebar";
+import { DateRangePicker } from "@/components/analytics/DateRangePicker";
+import { EmptyStateCard } from "@/components/analytics/EmptyStateCard";
 import { useGoogleMetrics } from "@/hooks/useGoogleMetrics";
 import { useMetaMetrics } from "@/hooks/useMetaMetrics";
 import { useSocialMediaMetrics } from "@/hooks/useSocialMediaMetrics";
+import { useAnalyticsDate } from "@/contexts/AnalyticsDateContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { calculateMetricChange, formatNumber } from "@/lib/analyticsCalculations";
 
 const PerformanceDashboard = () => {
-  const { analytics, ads: googleAds, isConnected, syncMetrics: syncGoogle } = useGoogleMetrics();
-  const { ads: metaAds, syncMetrics: syncMeta, refreshMetrics: refreshMeta, isConnected: metaConnected } = useMetaMetrics();
-  const { instagram, linkedin, youtube, isLoading: socialLoading, syncMetrics: syncSocial } = useSocialMediaMetrics();
+  const { dateRange, setDateRange } = useAnalyticsDate();
+  const { analytics, ads: googleAds, isConnected, syncMetrics: syncGoogle, loadCachedMetrics: loadGoogle } = useGoogleMetrics();
+  const { ads: metaAds, syncMetrics: syncMeta, refreshMetrics: refreshMeta } = useMetaMetrics();
+  const { instagram, linkedin, youtube, isLoading: socialLoading, syncMetrics: syncSocial, refreshMetrics: refreshSocial } = useSocialMediaMetrics();
   const { toast } = useToast();
   
   const [campaignData, setCampaignData] = useState<any[]>([]);
   const [roiData, setRoiData] = useState<any[]>([]);
   const [socialGrowthData, setSocialGrowthData] = useState<any[]>([]);
+  const [deviceData, setDeviceData] = useState<any[]>([]);
   const [isSyncingMeta, setIsSyncingMeta] = useState(false);
   const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
   const [isSyncingSocial, setIsSyncingSocial] = useState(false);
+  
+  // States for previous period metrics (for % change calculation)
+  const [prevPeriodMetrics, setPrevPeriodMetrics] = useState<{
+    conversions: number;
+    impressions: number;
+    cost: number;
+    clicks: number;
+  }>({ conversions: 0, impressions: 0, cost: 0, clicks: 0 });
 
-  // Handlers para sincronização manual
+  // Reload metrics when date range changes
+  useEffect(() => {
+    if (dateRange?.from && dateRange?.to) {
+      loadGoogle(dateRange.from, dateRange.to);
+      refreshMeta(dateRange.from, dateRange.to);
+      refreshSocial(dateRange.from, dateRange.to);
+      loadHistoricalData();
+      loadPreviousPeriodMetrics();
+    }
+  }, [dateRange]);
+
+  const loadPreviousPeriodMetrics = async () => {
+    if (!dateRange?.from || !dateRange?.to) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Calculate previous period (same duration)
+      const periodDuration = dateRange.to.getTime() - dateRange.from.getTime();
+      const prevEnd = new Date(dateRange.from.getTime() - 1);
+      const prevStart = new Date(prevEnd.getTime() - periodDuration);
+
+      const prevStartStr = prevStart.toISOString().split('T')[0];
+      const prevEndStr = prevEnd.toISOString().split('T')[0];
+
+      const [googleData, metaData] = await Promise.all([
+        supabase
+          .from('google_ads_metrics')
+          .select('conversions, impressions, cost, clicks')
+          .eq('user_id', user.id)
+          .gte('date', prevStartStr)
+          .lte('date', prevEndStr),
+        supabase
+          .from('meta_ads_metrics')
+          .select('conversions, impressions, cost, clicks')
+          .eq('user_id', user.id)
+          .gte('date', prevStartStr)
+          .lte('date', prevEndStr),
+      ]);
+
+      const totals = {
+        conversions: 0,
+        impressions: 0,
+        cost: 0,
+        clicks: 0,
+      };
+
+      [...(googleData.data || []), ...(metaData.data || [])].forEach(row => {
+        totals.conversions += Number(row.conversions || 0);
+        totals.impressions += Number(row.impressions || 0);
+        totals.cost += Number(row.cost || 0);
+        totals.clicks += Number(row.clicks || 0);
+      });
+
+      setPrevPeriodMetrics(totals);
+    } catch (error) {
+      console.error('Error loading previous period metrics:', error);
+    }
+  };
+
   const handleMetaSync = async () => {
     setIsSyncingMeta(true);
     try {
       await syncMeta();
-      await refreshMeta(); // Forçar reload após sync
+      await refreshMeta(dateRange?.from, dateRange?.to);
       toast({
         title: "Meta Ads sincronizado",
         description: "Dados atualizados com sucesso!",
@@ -84,142 +158,159 @@ const PerformanceDashboard = () => {
     }
   };
 
-  // Auto-sync Meta Ads se não houver dados
-  useEffect(() => {
-    const autoSyncMetaAds = async () => {
-      const hasAttemptedSync = sessionStorage.getItem('meta_ads_sync_attempted');
-      
-      if (!metaAds && !hasAttemptedSync && !isSyncingMeta) {
-        console.log('Nenhum dado de Meta Ads encontrado, tentando sincronizar automaticamente...');
-        sessionStorage.setItem('meta_ads_sync_attempted', 'true');
-        
-        try {
-          await handleMetaSync();
-        } catch (error) {
-          console.error('Auto-sync falhou:', error);
-        }
-      }
-    };
-    
-    autoSyncMetaAds();
-  }, [metaAds]);
+  const loadHistoricalData = async () => {
+    if (!dateRange?.from || !dateRange?.to) return;
 
-  // Carregar dados reais de campanhas para gráficos
-  useEffect(() => {
-    const loadHistoricalData = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-        // Últimos 6 meses de Google Ads
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const startStr = dateRange.from.toISOString().split('T')[0];
+      const endStr = dateRange.to.toISOString().split('T')[0];
 
-        const { data: googleData } = await supabase
+      const [googleData, metaData, socialData, analyticsData] = await Promise.all([
+        supabase
           .from('google_ads_metrics')
           .select('date, conversions, cost, clicks, impressions')
           .eq('user_id', user.id)
-          .gte('date', sixMonthsAgo.toISOString().split('T')[0])
-          .order('date', { ascending: true });
-
-        const { data: metaData } = await supabase
+          .gte('date', startStr)
+          .lte('date', endStr)
+          .order('date', { ascending: true }),
+        supabase
           .from('meta_ads_metrics')
           .select('date, conversions, cost, clicks, impressions')
           .eq('user_id', user.id)
-          .gte('date', sixMonthsAgo.toISOString().split('T')[0])
-          .order('date', { ascending: true });
-
-        // Agregar por mês para gráfico de campanhas
-        if (googleData && metaData) {
-          const monthlyData = new Map();
-          
-          [...googleData, ...metaData].forEach(row => {
-            const month = format(new Date(row.date), 'MMM');
-            if (!monthlyData.has(month)) {
-              monthlyData.set(month, 0);
-            }
-            monthlyData.set(month, monthlyData.get(month) + (row.conversions || 0));
-          });
-
-          const chartData = Array.from(monthlyData.entries()).map(([name, value]) => ({
-            name,
-            value: Math.round(value as number),
-          }));
-
-          setCampaignData(chartData);
-
-          // Calcular ROI por canal
-          const googleTotal = googleData.reduce((acc, row) => acc + (row.conversions || 0), 0);
-          const googleCost = googleData.reduce((acc, row) => acc + parseFloat(String(row.cost || 0)), 0);
-          const metaTotal = metaData.reduce((acc, row) => acc + (row.conversions || 0), 0);
-          const metaCost = metaData.reduce((acc, row) => acc + parseFloat(String(row.cost || 0)), 0);
-
-          setRoiData([
-            { name: "Google Ads", value: googleCost > 0 ? parseFloat((googleTotal * 100 / googleCost).toFixed(1)) : 0 },
-            { name: "Meta Ads", value: metaCost > 0 ? parseFloat((metaTotal * 100 / metaCost).toFixed(1)) : 0 },
-          ]);
-        }
-
-        // Dados de crescimento social
-        const { data: socialData } = await supabase
+          .gte('date', startStr)
+          .lte('date', endStr)
+          .order('date', { ascending: true }),
+        supabase
           .from('social_media_metrics')
           .select('date, platform, followers')
           .eq('user_id', user.id)
-          .gte('date', sixMonthsAgo.toISOString().split('T')[0])
-          .order('date', { ascending: true });
+          .gte('date', startStr)
+          .lte('date', endStr)
+          .order('date', { ascending: true }),
+        supabase
+          .from('google_analytics_metrics')
+          .select('metadata')
+          .eq('user_id', user.id)
+          .gte('date', startStr)
+          .lte('date', endStr)
+          .order('date', { ascending: true })
+      ]);
 
-        if (socialData && socialData.length > 0) {
-          const monthlyGrowth = new Map();
-          
-          socialData.forEach(row => {
-            const month = format(new Date(row.date), 'MMM');
-            if (!monthlyGrowth.has(month)) {
-              monthlyGrowth.set(month, { instagram: 0, linkedin: 0, youtube: 0 });
-            }
-            const current = monthlyGrowth.get(month);
-            current[row.platform] = row.followers || 0;
-          });
+      // Campaign conversions chart
+      if ((googleData.data || metaData.data) && (googleData.data?.length || metaData.data?.length)) {
+        const monthlyData = new Map();
+        
+        [...(googleData.data || []), ...(metaData.data || [])].forEach(row => {
+          const month = format(new Date(row.date), 'MMM');
+          if (!monthlyData.has(month)) {
+            monthlyData.set(month, 0);
+          }
+          monthlyData.set(month, monthlyData.get(month) + (row.conversions || 0));
+        });
 
-          const growthData = Array.from(monthlyGrowth.entries()).map(([name, data]) => ({
-            name,
-            ...data,
-          }));
+        const chartData = Array.from(monthlyData.entries()).map(([name, value]) => ({
+          name,
+          value: Math.round(value as number),
+        }));
 
-          setSocialGrowthData(growthData);
+        setCampaignData(chartData);
+
+        // ROI by channel
+        const googleTotal = (googleData.data || []).reduce((acc, row) => acc + (row.conversions || 0), 0);
+        const googleCost = (googleData.data || []).reduce((acc, row) => acc + parseFloat(String(row.cost || 0)), 0);
+        const metaTotal = (metaData.data || []).reduce((acc, row) => acc + (row.conversions || 0), 0);
+        const metaCost = (metaData.data || []).reduce((acc, row) => acc + parseFloat(String(row.cost || 0)), 0);
+
+        const roiChartData = [];
+        if (googleCost > 0) {
+          roiChartData.push({ name: "Google Ads", value: parseFloat((googleTotal * 100 / googleCost).toFixed(1)) });
         }
-      } catch (error) {
-        console.error('Error loading historical data:', error);
+        if (metaCost > 0) {
+          roiChartData.push({ name: "Meta Ads", value: parseFloat((metaTotal * 100 / metaCost).toFixed(1)) });
+        }
+
+        setRoiData(roiChartData);
       }
-    };
 
-    loadHistoricalData();
-  }, [metaAds, googleAds, isSyncingMeta, isSyncingGoogle, isSyncingSocial]);
+      // Social growth chart
+      if (socialData.data && socialData.data.length > 0) {
+        const monthlyGrowth = new Map();
+        
+        socialData.data.forEach(row => {
+          const month = format(new Date(row.date), 'MMM');
+          if (!monthlyGrowth.has(month)) {
+            monthlyGrowth.set(month, { instagram: 0, linkedin: 0, youtube: 0 });
+          }
+          const current = monthlyGrowth.get(month);
+          current[row.platform] = row.followers || 0;
+        });
 
-  const trafficData = [
-    { name: "Jan", organic: 420, paid: 380 },
-    { name: "Fev", organic: 510, paid: 410 },
-    { name: "Mar", organic: 580, paid: 470 },
-    { name: "Abr", organic: 650, paid: 530 },
-    { name: "Mai", organic: 720, paid: 480 },
-    { name: "Jun", organic: 800, paid: 447 },
-  ];
+        const growthData = Array.from(monthlyGrowth.entries()).map(([name, data]) => ({
+          name,
+          ...data,
+        }));
 
-  const deviceData = [
-    { name: "Mobile", value: 847, color: "#A1887F" },
-    { name: "Desktop", value: 285, color: "#8D6E63" },
-    { name: "Tablet", value: 115, color: "#6D4C41" },
-  ];
+        setSocialGrowthData(growthData);
+      }
 
-  // Calculate metrics from real data
+      // Device data from Google Analytics metadata
+      if (analyticsData.data && analyticsData.data.length > 0) {
+        const deviceTotals = { mobile: 0, desktop: 0, tablet: 0 };
+        
+        analyticsData.data.forEach(row => {
+          if (row.metadata && typeof row.metadata === 'object') {
+            const meta = row.metadata as any;
+            if (meta.device_category) {
+              const device = meta.device_category.toLowerCase();
+              if (device === 'mobile') deviceTotals.mobile++;
+              else if (device === 'desktop') deviceTotals.desktop++;
+              else if (device === 'tablet') deviceTotals.tablet++;
+            }
+          }
+        });
+
+        const total = deviceTotals.mobile + deviceTotals.desktop + deviceTotals.tablet;
+        if (total > 0) {
+          setDeviceData([
+            { name: "Mobile", value: deviceTotals.mobile, color: "hsl(var(--chart-1))" },
+            { name: "Desktop", value: deviceTotals.desktop, color: "hsl(var(--chart-2))" },
+            { name: "Tablet", value: deviceTotals.tablet, color: "hsl(var(--chart-3))" },
+          ]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading historical data:', error);
+    }
+  };
+
+  // Calculate current metrics
   const totalConversions = (googleAds?.conversions || 0) + (metaAds?.conversions || 0) + (analytics?.conversions || 0);
   const totalImpressions = (googleAds?.impressions || 0) + (metaAds?.impressions || 0);
   const totalCost = (googleAds?.cost || 0) + (metaAds?.cost || 0);
   const totalClicks = (googleAds?.clicks || 0) + (metaAds?.clicks || 0);
 
-  const conversions = totalConversions > 0 ? totalConversions : 1247;
-  const impressions = totalImpressions > 0 ? totalImpressions : 847000;
-  const roas = totalCost > 0 ? (totalConversions * 100 / totalCost).toFixed(1) : "4.2";
-  const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "3.8";
+  // Calculate percentage changes
+  const conversionsChange = calculateMetricChange(totalConversions, prevPeriodMetrics.conversions);
+  const impressionsChange = calculateMetricChange(totalImpressions, prevPeriodMetrics.impressions);
+  const roasValue = totalCost > 0 ? (totalConversions * 100 / totalCost) : 0;
+  const prevRoas = prevPeriodMetrics.cost > 0 ? (prevPeriodMetrics.conversions * 100 / prevPeriodMetrics.cost) : 0;
+  const roasChange = calculateMetricChange(roasValue, prevRoas);
+  
+  const ctrValue = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100) : 0;
+  const prevCtr = prevPeriodMetrics.impressions > 0 ? ((prevPeriodMetrics.clicks / prevPeriodMetrics.impressions) * 100) : 0;
+  const ctrChange = calculateMetricChange(ctrValue, prevCtr);
+
+  const hasAnyData = totalConversions > 0 || totalImpressions > 0;
+
+  const handleExport = () => {
+    toast({
+      title: "Exportando dados",
+      description: "A funcionalidade de exportação será implementada em breve.",
+    });
+  };
 
   return (
     <div className="flex gap-6 h-full overflow-hidden">
@@ -233,7 +324,6 @@ const PerformanceDashboard = () => {
               disabled={isSyncingGoogle}
               variant="outline"
               size="sm"
-              className="border-blue-500/30 hover:bg-blue-500/10"
             >
               {isSyncingGoogle ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
               Google Ads
@@ -243,22 +333,15 @@ const PerformanceDashboard = () => {
               disabled={isSyncingMeta}
               variant="outline"
               size="sm"
-              className="border-purple-500/30 hover:bg-purple-500/10"
             >
               {isSyncingMeta ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
               Meta Ads
             </Button>
-            {metaAds && (
-              <span className="text-xs text-muted-foreground">
-                {metaAds.impressions.toLocaleString('pt-BR')} impressões
-              </span>
-            )}
             <Button 
               onClick={handleSocialSync}
               disabled={isSyncingSocial}
               variant="outline"
               size="sm"
-              className="border-green-500/30 hover:bg-green-500/10"
             >
               {isSyncingSocial ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
               Redes Sociais
@@ -266,118 +349,119 @@ const PerformanceDashboard = () => {
           </div>
           
           <div className="flex gap-2">
-            <Button className="bg-[#A1887F] hover:bg-[#8D6E63]">
-              <Calendar className="w-4 h-4 mr-2" />
-              Últimos 30 dias
-            </Button>
-            <Button variant="outline" className="bg-[#2a2a2a] border-gray-600 hover:bg-[#333333]">
+            <DateRangePicker dateRange={dateRange} onDateRangeChange={setDateRange} />
+            <Button variant="outline" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Exportar
             </Button>
           </div>
         </div>
 
-        {/* Metric Cards - Ads */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard
-            title="Conversões"
-            value={conversions.toLocaleString('pt-BR')}
-            change="+23%"
-            icon={<TrendingUp className="w-6 h-6" />}
-            color="green"
-            progress={78}
+        {!hasAnyData ? (
+          <EmptyStateCard
+            title="Nenhum dado disponível"
+            description="Conecte suas contas de Google Ads e Meta Ads para visualizar suas métricas de performance."
+            actionLabel="Conectar Google Ads"
+            onAction={handleGoogleSync}
           />
-          <MetricCard
-            title="Impressões"
-            value={`${(impressions / 1000).toFixed(0)}K`}
-            change="+12%"
-            icon={<Eye className="w-6 h-6" />}
-            color="blue"
-            progress={65}
-          />
-          <MetricCard
-            title="ROAS"
-            value={`${roas}x`}
-            change="+8%"
-            icon={<DollarSign className="w-6 h-6" />}
-            color="yellow"
-            progress={84}
-          />
-          <MetricCard
-            title="CTR"
-            value={`${ctr}%`}
-            change="+15%"
-            icon={<MousePointerClick className="w-6 h-6" />}
-            color="purple"
-            progress={76}
-          />
-        </div>
+        ) : (
+          <>
+            {/* Metric Cards - Ads */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <MetricCard
+                title="Conversões"
+                value={totalConversions > 0 ? totalConversions.toLocaleString('pt-BR') : "0"}
+                change={conversionsChange.value}
+                icon={<TrendingUp className="w-6 h-6" />}
+                color="green"
+                progress={totalConversions > 0 ? 78 : 0}
+              />
+              <MetricCard
+                title="Impressões"
+                value={totalImpressions > 0 ? formatNumber(totalImpressions) : "0"}
+                change={impressionsChange.value}
+                icon={<Eye className="w-6 h-6" />}
+                color="blue"
+                progress={totalImpressions > 0 ? 65 : 0}
+              />
+              <MetricCard
+                title="ROAS"
+                value={roasValue > 0 ? `${roasValue.toFixed(1)}x` : "0x"}
+                change={roasChange.value}
+                icon={<DollarSign className="w-6 h-6" />}
+                color="yellow"
+                progress={roasValue > 0 ? 84 : 0}
+              />
+              <MetricCard
+                title="CTR"
+                value={ctrValue > 0 ? `${ctrValue.toFixed(2)}%` : "0%"}
+                change={ctrChange.value}
+                icon={<MousePointerClick className="w-6 h-6" />}
+                color="purple"
+                progress={ctrValue > 0 ? 76 : 0}
+              />
+            </div>
 
-        {/* Social Media Metrics */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <MetricCard
-            title="Instagram - Seguidores"
-            value={instagram?.followers.toLocaleString('pt-BR') || "Conectar"}
-            change={instagram?.growth ? `+${instagram.growth}` : "N/A"}
-            icon={<Instagram className="w-6 h-6" />}
-            color="purple"
-            progress={instagram ? 85 : 0}
-          />
-          <MetricCard
-            title="LinkedIn - Seguidores"
-            value={linkedin?.followers.toLocaleString('pt-BR') || "Conectar"}
-            change={linkedin?.growth ? `+${linkedin.growth}` : "N/A"}
-            icon={<Linkedin className="w-6 h-6" />}
-            color="blue"
-            progress={linkedin ? 72 : 0}
-          />
-          <MetricCard
-            title="YouTube - Inscritos"
-            value={youtube?.followers.toLocaleString('pt-BR') || "Conectar"}
-            change={youtube?.growth ? `+${youtube.growth}` : "N/A"}
-            icon={<Youtube className="w-6 h-6" />}
-            color="yellow"
-            progress={youtube ? 68 : 0}
-          />
-        </div>
+            {/* Social Media Metrics */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <MetricCard
+                title="Instagram - Seguidores"
+                value={instagram?.followers ? instagram.followers.toLocaleString('pt-BR') : "—"}
+                change={instagram?.growth ? `+${instagram.growth}` : "—"}
+                icon={<Instagram className="w-6 h-6" />}
+                color="purple"
+                progress={instagram ? 85 : 0}
+              />
+              <MetricCard
+                title="LinkedIn - Seguidores"
+                value={linkedin?.followers ? linkedin.followers.toLocaleString('pt-BR') : "—"}
+                change={linkedin?.growth ? `+${linkedin.growth}` : "—"}
+                icon={<Linkedin className="w-6 h-6" />}
+                color="blue"
+                progress={linkedin ? 72 : 0}
+              />
+              <MetricCard
+                title="YouTube - Inscritos"
+                value={youtube?.followers ? youtube.followers.toLocaleString('pt-BR') : "—"}
+                change={youtube?.growth ? `+${youtube.growth}` : "—"}
+                icon={<Youtube className="w-6 h-6" />}
+                color="yellow"
+                progress={youtube ? 68 : 0}
+              />
+            </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ChartCard
-            title="Performance das Campanhas"
-            subtitle="Conversões mensais"
-            type="line"
-            data={campaignData.length > 0 ? campaignData : [{ name: "Sem dados", value: 0 }]}
-            actions={
-              <div className="flex gap-2">
-                <button className="px-3 py-1 bg-[#A1887F] text-white text-xs rounded-full">
-                  Todas
-                </button>
-              </div>
-            }
-          />
-          <ChartCard
-            title="Crescimento de Seguidores"
-            subtitle="Redes sociais"
-            type="area"
-            data={socialGrowthData.length > 0 ? socialGrowthData : trafficData}
-          />
-          <ChartCard
-            title="ROI por Canal"
-            subtitle="Últimos 6 meses"
-            type="bar"
-            data={roiData.length > 0 ? roiData : [{ name: "Google Ads", value: 5.2 }, { name: "Meta Ads", value: 4.8 }]}
-          />
-          <ChartCard
-            title="Conversões por Dispositivo"
-            subtitle="Total: 1,247"
-            type="pie"
-            data={deviceData}
-          />
-        </div>
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ChartCard
+                title="Performance das Campanhas"
+                subtitle="Conversões no período"
+                type="line"
+                data={campaignData.length > 0 ? campaignData : []}
+              />
+              <ChartCard
+                title="Crescimento de Seguidores"
+                subtitle="Redes sociais"
+                type="area"
+                data={socialGrowthData.length > 0 ? socialGrowthData : []}
+              />
+              <ChartCard
+                title="ROI por Canal"
+                subtitle={`${dateRange?.from && dateRange?.to ? format(dateRange.from, 'dd/MM') + ' - ' + format(dateRange.to, 'dd/MM') : 'Período selecionado'}`}
+                type="bar"
+                data={roiData.length > 0 ? roiData : []}
+              />
+              <ChartCard
+                title="Conversões por Dispositivo"
+                subtitle={`Total: ${totalConversions.toLocaleString('pt-BR')}`}
+                type="pie"
+                data={deviceData.length > 0 ? deviceData : []}
+              />
+            </div>
 
-        {/* Campaign Table */}
-        <CampaignTable />
+            {/* Campaign Table */}
+            <CampaignTable />
+          </>
+        )}
       </section>
 
       {/* Insights Sidebar */}

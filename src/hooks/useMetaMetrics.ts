@@ -74,26 +74,33 @@ export function useMetaMetrics() {
     }
   };
 
-  const loadCachedMetrics = async () => {
+  const loadCachedMetrics = async (startDate?: Date, endDate?: Date) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get last 30 days of data
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // Default to last 30 days if no dates provided
+      const end = endDate || new Date();
+      const start = startDate || (() => {
+        const date = new Date();
+        date.setDate(date.getDate() - 30);
+        return date;
+      })();
+
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
 
       const { data, error } = await supabase
         .from('meta_ads_metrics')
         .select('*')
         .eq('user_id', user.id)
-        .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+        .gte('date', startStr)
+        .lte('date', endStr)
         .order('date', { ascending: false });
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // Aggregate metrics
         const totals = data.reduce(
           (acc, row) => ({
             impressions: acc.impressions + (row.impressions || 0),
@@ -101,14 +108,13 @@ export function useMetaMetrics() {
             clicks: acc.clicks + (row.clicks || 0),
             cost: acc.cost + parseFloat(String(row.cost || 0)),
             conversions: acc.conversions + parseFloat(String(row.conversions || 0)),
-            ctr: 0, // Will calculate after
-            cpm: 0, // Will calculate after
-            cpc: 0, // Will calculate after
+            ctr: 0,
+            cpm: 0,
+            cpc: 0,
           }),
           { impressions: 0, reach: 0, clicks: 0, cost: 0, conversions: 0, ctr: 0, cpm: 0, cpc: 0 }
         );
 
-        // Calculate derived metrics
         totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
         totals.cpm = totals.impressions > 0 ? (totals.cost / totals.impressions) * 1000 : 0;
         totals.cpc = totals.clicks > 0 ? totals.cost / totals.clicks : 0;

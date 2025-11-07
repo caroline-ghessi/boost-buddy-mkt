@@ -186,27 +186,35 @@ export const useGoogleMetrics = () => {
     }
   };
 
-  const loadCachedMetrics = async () => {
+  const loadCachedMetrics = async (startDate?: Date, endDate?: Date) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get last 30 days of data aggregated
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
+      // Default to last 30 days if no dates provided
+      const end = endDate || new Date();
+      const start = startDate || (() => {
+        const date = new Date();
+        date.setDate(date.getDate() - 30);
+        return date;
+      })();
+
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
 
       const [analyticsData, adsData] = await Promise.all([
         supabase
           .from('google_analytics_metrics')
           .select('*')
           .eq('user_id', user.id)
-          .gte('date', dateStr),
+          .gte('date', startStr)
+          .lte('date', endStr),
         supabase
           .from('google_ads_metrics')
           .select('*')
           .eq('user_id', user.id)
-          .gte('date', dateStr),
+          .gte('date', startStr)
+          .lte('date', endStr),
       ]);
 
       if (analyticsData.data && analyticsData.data.length > 0) {
@@ -216,7 +224,7 @@ export const useGoogleMetrics = () => {
           new_users: acc.new_users + row.new_users,
           pageviews: acc.pageviews + row.pageviews,
           conversions: acc.conversions + row.conversions,
-          conversion_rate: 0, // Will calculate after
+          conversion_rate: 0,
         }), { sessions: 0, users: 0, new_users: 0, pageviews: 0, conversions: 0, conversion_rate: 0 });
 
         totals.conversion_rate = totals.sessions > 0
@@ -224,6 +232,8 @@ export const useGoogleMetrics = () => {
           : 0;
 
         setMetrics(prev => ({ ...prev, analytics: totals }));
+      } else {
+        setMetrics(prev => ({ ...prev, analytics: null }));
       }
 
       if (adsData.data && adsData.data.length > 0) {
@@ -232,7 +242,7 @@ export const useGoogleMetrics = () => {
           clicks: acc.clicks + row.clicks,
           cost: acc.cost + Number(row.cost),
           conversions: acc.conversions + Number(row.conversions),
-          ctr: 0, // Will calculate after
+          ctr: 0,
         }), { impressions: 0, clicks: 0, cost: 0, conversions: 0, ctr: 0 });
 
         totals.ctr = totals.impressions > 0
@@ -240,6 +250,8 @@ export const useGoogleMetrics = () => {
           : 0;
 
         setMetrics(prev => ({ ...prev, ads: totals }));
+      } else {
+        setMetrics(prev => ({ ...prev, ads: null }));
       }
     } catch (error) {
       console.error('Error loading cached metrics:', error);
@@ -262,5 +274,6 @@ export const useGoogleMetrics = () => {
     connectGoogle,
     syncMetrics,
     refreshConnection: checkConnection,
+    loadCachedMetrics,
   };
 };

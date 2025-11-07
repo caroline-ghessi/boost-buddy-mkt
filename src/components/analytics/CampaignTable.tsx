@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsDate } from "@/contexts/AnalyticsDateContext";
 
 interface Campaign {
   name: string;
@@ -15,33 +16,36 @@ interface Campaign {
 }
 
 export function CampaignTable() {
+  const { dateRange } = useAnalyticsDate();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadCampaigns = async () => {
+      if (!dateRange?.from || !dateRange?.to) return;
+
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Buscar métricas dos últimos 30 dias
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const dateFilter = thirtyDaysAgo.toISOString().split('T')[0];
+        const startDate = dateRange.from.toISOString().split('T')[0];
+        const endDate = dateRange.to.toISOString().split('T')[0];
 
         // Buscar todas as métricas de Google Ads
         const { data: googleMetrics } = await supabase
           .from('google_ads_metrics')
           .select('campaign_name, impressions, clicks, conversions, cost')
           .eq('user_id', user.id)
-          .gte('date', dateFilter);
+          .gte('date', startDate)
+          .lte('date', endDate);
 
         // Buscar todas as métricas de Meta Ads
         const { data: metaMetrics } = await supabase
           .from('meta_ads_metrics')
           .select('campaign_name, impressions, clicks, conversions, cost')
           .eq('user_id', user.id)
-          .gte('date', dateFilter);
+          .gte('date', startDate)
+          .lte('date', endDate);
 
         // Agrupar métricas por campaign_name
         const campaignMap = new Map<string, {
@@ -100,7 +104,7 @@ export function CampaignTable() {
     };
 
     loadCampaigns();
-  }, []);
+  }, [dateRange]);
   return (
     <div className="bg-[#1e1e1e] rounded-xl border border-gray-700/50 p-6">
       <div className="flex items-center justify-between mb-6">

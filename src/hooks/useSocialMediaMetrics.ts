@@ -26,26 +26,33 @@ export function useSocialMediaMetrics() {
   });
   const { toast } = useToast();
 
-  const loadMetrics = async () => {
+  const loadMetrics = async (startDate?: Date, endDate?: Date) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Buscar últimos 30 dias
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      // Default to last 30 days if no dates provided
+      const end = endDate || new Date();
+      const start = startDate || (() => {
+        const date = new Date();
+        date.setDate(date.getDate() - 30);
+        return date;
+      })();
+
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
 
       const { data, error } = await supabase
         .from('social_media_metrics')
         .select('*')
         .eq('user_id', user.id)
-        .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+        .gte('date', startStr)
+        .lte('date', endStr)
         .order('date', { ascending: false });
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // Agrupar por plataforma e calcular métricas
         const platforms = ['instagram', 'linkedin', 'youtube'] as const;
         const aggregated: any = {};
 
