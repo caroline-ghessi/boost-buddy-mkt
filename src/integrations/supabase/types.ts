@@ -248,6 +248,81 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_jobs: {
+        Row: {
+          agent_id: string
+          attempts: number
+          campaign_id: string | null
+          completed_at: string | null
+          created_at: string
+          enqueued_at: string
+          error_message: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          payload: Json
+          priority: number
+          result: Json | null
+          started_at: string | null
+          status: string
+          task_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          attempts?: number
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          enqueued_at?: string
+          error_message?: string | null
+          id?: string
+          job_type: string
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          attempts?: number
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          enqueued_at?: string
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          task_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_jobs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_jobs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "agent_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_prompt_history: {
         Row: {
           agent_config_id: string
@@ -1240,6 +1315,16 @@ export type Database = {
       }
     }
     Views: {
+      v_agent_queue_health: {
+        Row: {
+          avg_attempts: number | null
+          count: number | null
+          newest_job: string | null
+          oldest_job: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
       v_sync_health: {
         Row: {
           avg_duration_seconds: number | null

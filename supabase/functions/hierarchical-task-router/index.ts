@@ -114,6 +114,46 @@ serve(async (req) => {
     createdTasks.push(level2Task);
     console.log('Level 2 task created:', level2Task.id);
 
+    // Enqueue job in pgmq instead of direct processing
+    const jobPayload = {
+      job_id: crypto.randomUUID(),
+      task_id: level2Task.id,
+      campaign_id,
+      agent_id: routing.level2,
+      attempts: 0,
+      max_attempts: 3
+    };
+
+    // Insert job record
+    const { error: jobError } = await supabase
+      .from('agent_jobs')
+      .insert({
+        id: jobPayload.job_id,
+        job_type: 'process_task',
+        task_id: level2Task.id,
+        campaign_id,
+        agent_id: routing.level2,
+        priority: priority === 'high' ? 1 : priority === 'medium' ? 5 : 10,
+        payload: jobPayload,
+        status: 'pending'
+      });
+
+    if (jobError) {
+      console.error('Error creating job record:', jobError);
+    } else {
+      // Send to pgmq queue
+      const { error: enqueueError } = await supabase.rpc('pgmq_send', {
+        queue_name: 'agent_jobs_queue',
+        msg: jobPayload
+      });
+
+      if (enqueueError) {
+        console.error('Error enqueuing job:', enqueueError);
+      } else {
+        console.log(`Enqueued job ${jobPayload.job_id} for task ${level2Task.id}`);
+      }
+    }
+
     // Send delegation communication
     await supabase.functions.invoke('agent-communication', {
       body: {
@@ -161,6 +201,39 @@ serve(async (req) => {
 
         createdTasks.push(level3Task);
         console.log('Level 3 task created:', level3Task.id);
+
+        // Enqueue subtask job
+        const subtaskJobPayload = {
+          job_id: crypto.randomUUID(),
+          task_id: level3Task.id,
+          campaign_id,
+          agent_id: level3Agent,
+          attempts: 0,
+          max_attempts: 3
+        };
+
+        // Insert job record
+        const { error: subtaskJobError } = await supabase
+          .from('agent_jobs')
+          .insert({
+            id: subtaskJobPayload.job_id,
+            job_type: 'process_task',
+            task_id: level3Task.id,
+            campaign_id,
+            agent_id: level3Agent,
+            priority: priority === 'high' ? 1 : priority === 'medium' ? 5 : 10,
+            payload: subtaskJobPayload,
+            status: 'pending'
+          });
+
+        if (!subtaskJobError) {
+          // Send to pgmq queue
+          await supabase.rpc('pgmq_send', {
+            queue_name: 'agent_jobs_queue',
+            msg: subtaskJobPayload
+          });
+          console.log(`Enqueued job ${subtaskJobPayload.job_id} for subtask ${level3Task.id}`);
+        }
 
         // Send delegation communication from Level 2 to Level 3
         await supabase.functions.invoke('agent-communication', {
