@@ -1292,6 +1292,72 @@ export type Database = {
         }
         Relationships: []
       }
+      tool_execution_logs: {
+        Row: {
+          agent_id: string
+          campaign_id: string | null
+          cost_usd: number | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input: Json | null
+          metadata: Json | null
+          output: Json | null
+          status: string
+          task_id: string | null
+          tokens_used: number | null
+          tool_name: string
+        }
+        Insert: {
+          agent_id: string
+          campaign_id?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input?: Json | null
+          metadata?: Json | null
+          output?: Json | null
+          status: string
+          task_id?: string | null
+          tokens_used?: number | null
+          tool_name: string
+        }
+        Update: {
+          agent_id?: string
+          campaign_id?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input?: Json | null
+          metadata?: Json | null
+          output?: Json | null
+          status?: string
+          task_id?: string | null
+          tokens_used?: number | null
+          tool_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_execution_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tool_execution_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "agent_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1315,6 +1381,23 @@ export type Database = {
       }
     }
     Views: {
+      mv_agent_performance: {
+        Row: {
+          agent_id: string | null
+          avg_duration_ms: number | null
+          day: string | null
+          failed_count: number | null
+          median_duration_ms: number | null
+          p95_duration_ms: number | null
+          success_count: number | null
+          success_rate_pct: number | null
+          timeout_count: number | null
+          total_cost_usd: number | null
+          total_executions: number | null
+          total_tokens: number | null
+        }
+        Relationships: []
+      }
       v_agent_queue_health: {
         Row: {
           avg_attempts: number | null
@@ -1324,6 +1407,30 @@ export type Database = {
           status: string | null
         }
         Relationships: []
+      }
+      v_recent_tool_logs: {
+        Row: {
+          agent_id: string | null
+          agent_name: string | null
+          cost_usd: number | null
+          created_at: string | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string | null
+          status: string | null
+          task_id: string | null
+          tokens_used: number | null
+          tool_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tool_execution_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "agent_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_sync_health: {
         Row: {
@@ -1336,6 +1443,19 @@ export type Database = {
           success_count_24h: number | null
           success_count_7d: number | null
           total_rows_7d: number | null
+        }
+        Relationships: []
+      }
+      v_tool_performance: {
+        Row: {
+          avg_duration_ms: number | null
+          failed_count: number | null
+          success_count: number | null
+          success_rate_pct: number | null
+          tool_name: string | null
+          total_calls: number | null
+          total_cost_usd: number | null
+          total_tokens: number | null
         }
         Relationships: []
       }

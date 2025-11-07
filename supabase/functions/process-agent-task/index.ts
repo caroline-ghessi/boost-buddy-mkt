@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { buildAgentContext } from '../_shared/context-builder.ts';
 import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from '../_shared/llm-router.ts';
+import { logExecution, calculateCost } from '../_shared/execution-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -133,7 +134,28 @@ serve(async (req) => {
     };
 
     console.log('Building context for task:', contextOptions);
+    
+    // Log context building
+    const contextStartTime = Date.now();
     const contextData = await buildAgentContext(contextOptions, supabase);
+    const contextDuration = Date.now() - contextStartTime;
+    
+    await logExecution({
+      supabase,
+      agentId: task.agent_id,
+      taskId: task.id,
+      campaignId: task.campaign_id,
+      toolName: 'context_build',
+      input: contextOptions,
+      output: {
+        rag_chunks: contextData.ragContext ? 'included' : 'none',
+        metrics: contextData.metricsContext ? 'included' : 'none',
+        competitors: contextData.competitorsContext ? 'included' : 'none',
+        social_media: contextData.socialMediaContext ? 'included' : 'none'
+      },
+      durationMs: contextDuration,
+      status: 'success'
+    });
 
     // Prepare messages for LLM
     const systemPrompt = `${agentConfig.system_prompt}
@@ -208,32 +230,100 @@ Forneça uma resposta detalhada, acionável e baseada nos dados disponíveis.`;
 
     console.log(`Calling LLM: ${model} at ${endpoint}`);
 
-    const llmResponse = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!llmResponse.ok) {
-      const errorText = await llmResponse.text();
-      console.error('LLM API error:', llmResponse.status, errorText);
-      throw new Error(`LLM API error: ${llmResponse.status}`);
-    }
-
-    const llmData = await llmResponse.json();
-    
-    // Extract response based on model type
+    const llmStartTime = Date.now();
+    let llmResponse;
+    let llmData;
     let agentResponse = '';
-    if (isGeminiDirect(model)) {
-      agentResponse = llmData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    } else if (isAnthropicDirect(model)) {
-      agentResponse = llmData.content?.[0]?.text || '';
-    } else {
-      agentResponse = llmData.choices?.[0]?.message?.content || '';
-    }
+    let tokensUsed = 0;
+    
+    try {
+      llmResponse = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
 
-    if (!agentResponse) {
-      throw new Error('No response from LLM');
+      if (!llmResponse.ok) {
+        const errorText = await llmResponse.text();
+        console.error('LLM API error:', llmResponse.status, errorText);
+        
+        // Log failed LLM call
+        await logExecution({
+          supabase,
+          agentId: task.agent_id,
+          taskId: task.id,
+          campaignId: task.campaign_id,
+          toolName: 'llm_call',
+          input: { model, prompt_length: systemPrompt.length + userMessage.length },
+          durationMs: Date.now() - llmStartTime,
+          status: 'failed',
+          errorMessage: `HTTP ${llmResponse.status}: ${errorText}`,
+          metadata: { model, endpoint }
+        });
+        
+        throw new Error(`LLM API error: ${llmResponse.status}`);
+      }
+
+      llmData = await llmResponse.json();
+      
+      // Extract response and tokens based on model type
+      if (isGeminiDirect(model)) {
+        agentResponse = llmData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        tokensUsed = llmData.usageMetadata?.totalTokenCount || 0;
+      } else if (isAnthropicDirect(model)) {
+        agentResponse = llmData.content?.[0]?.text || '';
+        tokensUsed = (llmData.usage?.input_tokens || 0) + (llmData.usage?.output_tokens || 0);
+      } else {
+        agentResponse = llmData.choices?.[0]?.message?.content || '';
+        tokensUsed = llmData.usage?.total_tokens || 0;
+      }
+
+      if (!agentResponse) {
+        throw new Error('No response from LLM');
+      }
+      
+      const llmDuration = Date.now() - llmStartTime;
+      const costUsd = calculateCost(tokensUsed, model);
+      
+      // Log successful LLM call
+      await logExecution({
+        supabase,
+        agentId: task.agent_id,
+        taskId: task.id,
+        campaignId: task.campaign_id,
+        toolName: 'llm_call',
+        input: { 
+          model, 
+          prompt_length: systemPrompt.length + userMessage.length,
+          temperature: agentConfig.temperature,
+          max_tokens: agentConfig.max_tokens
+        },
+        output: { 
+          response_length: agentResponse.length,
+          model_used: model
+        },
+        durationMs: llmDuration,
+        tokensUsed,
+        costUsd,
+        status: 'success',
+        metadata: { endpoint }
+      });
+      
+    } catch (error: any) {
+      // Log failed LLM call
+      await logExecution({
+        supabase,
+        agentId: task.agent_id,
+        taskId: task.id,
+        campaignId: task.campaign_id,
+        toolName: 'llm_call',
+        input: { model, prompt_length: systemPrompt.length + userMessage.length },
+        durationMs: Date.now() - llmStartTime,
+        status: 'failed',
+        errorMessage: error.message,
+        metadata: { model, endpoint }
+      });
+      throw error;
     }
 
     // Save result

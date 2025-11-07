@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   Home, MessageSquare, BarChart3, Users, Search, 
-  Plug, BookOpen, Calendar, LogOut 
+  Plug, BookOpen, Calendar, LogOut, Activity 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { Separator } from "@/components/ui/separator";
 
 const menuItems = [
   { path: "/", label: "Dashboard", icon: Home },
@@ -14,6 +15,11 @@ const menuItems = [
   { path: "/competitive-intelligence", label: "Benchmark", icon: Search },
   { path: "/planning", label: "Planejamento", icon: Calendar },
   { path: "/knowledge", label: "Base de Conhecimento", icon: BookOpen },
+];
+
+const adminItems = [
+  { path: "/admin/agents-performance", label: "Performance Agentes", icon: Activity },
+  { path: "/admin/sync-status", label: "Status de Sync", icon: Plug },
 ];
 
 export function Sidebar() {
@@ -43,6 +49,34 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="space-y-2">
           {menuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = location.pathname === item.path;
+            
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`
+                  flex items-center p-3 rounded-lg transition-all duration-200
+                  ${isActive 
+                    ? 'bg-[#A1887F] text-white' 
+                    : 'text-gray-400 hover:bg-[#2a2a2a] hover:text-white'
+                  }
+                `}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="ml-3 font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+
+          <Separator className="my-4 bg-gray-700/50" />
+
+          <div className="text-xs text-gray-500 uppercase font-semibold px-3 mb-2">
+            Admin
+          </div>
+          
+          {adminItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             
