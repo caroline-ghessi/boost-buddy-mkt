@@ -430,6 +430,42 @@ export type Database = {
           },
         ]
       }
+      autonomous_events: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          processed: boolean | null
+          processed_at: string | null
+          processing_result: Json | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          processed?: boolean | null
+          processed_at?: string | null
+          processing_result?: Json | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          processed?: boolean | null
+          processed_at?: string | null
+          processing_result?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       budget_allocations: {
         Row: {
           allocated_amount: number
@@ -1461,6 +1497,7 @@ export type Database = {
       }
     }
     Functions: {
+      check_agent_performance_degradation: { Args: never; Returns: undefined }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
