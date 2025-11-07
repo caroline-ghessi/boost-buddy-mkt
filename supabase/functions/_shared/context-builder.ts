@@ -9,6 +9,8 @@ interface ContextOptions {
   includeMetrics?: boolean;
   includeCompetitors?: boolean;
   includeSocialMedia?: boolean;
+  preferredCategories?: string[];
+  excludeCategories?: string[];
 }
 
 interface ContextData {
@@ -29,7 +31,7 @@ export async function buildAgentContext(
   let competitorsContext = '';
   let socialMediaContext = '';
 
-  // 1. RAG Context - Buscar conhecimento relevante
+  // 1. RAG Context with category filtering
   if (options.includeRAG !== false) {
     try {
       const queryText = options.query || `${options.taskType} for campaign`;
@@ -38,7 +40,9 @@ export async function buildAgentContext(
         body: { 
           query: queryText,
           matchThreshold: 0.7,
-          matchCount: 5 
+          matchCount: 5,
+          categories: options.preferredCategories,
+          excludeCategories: options.excludeCategories
         }
       });
 

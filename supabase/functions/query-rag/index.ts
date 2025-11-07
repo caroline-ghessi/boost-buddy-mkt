@@ -12,7 +12,13 @@ serve(async (req) => {
   }
 
   try {
-    const { query, matchThreshold = 0.7, matchCount = 5 } = await req.json();
+    const { 
+      query, 
+      matchThreshold = 0.7, 
+      matchCount = 5,
+      categories = null,
+      excludeCategories = null 
+    } = await req.json();
     
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -59,12 +65,48 @@ serve(async (req) => {
     }
 
     // Search for similar chunks using the match_rag_chunks function
-    const { data: chunks, error } = await supabase.rpc('match_rag_chunks', {
+    let { data: chunks, error } = await supabase.rpc('match_rag_chunks', {
       query_embedding: queryEmbedding,
       match_threshold: matchThreshold,
-      match_count: matchCount,
+      match_count: matchCount * 2, // Get more to allow filtering
       filter_user_id: userId
     });
+
+    // Apply category filters if provided
+    if (chunks && (categories || excludeCategories)) {
+      // Get document IDs and their categories
+      const documentIds = [...new Set(chunks.map((c: any) => c.document_id))];
+      
+      const { data: docs } = await supabase
+        .from('rag_documents')
+        .select('id, category')
+        .in('id', documentIds);
+
+      const docCategoryMap = new Map(docs?.map(d => [d.id, d.category]) || []);
+
+      chunks = chunks.filter((chunk: any) => {
+        const docCategory = docCategoryMap.get(chunk.document_id);
+        
+        // Filter by categories if specified
+        if (categories && categories.length > 0) {
+          if (!docCategory || !categories.includes(docCategory)) {
+            return false;
+          }
+        }
+        
+        // Exclude categories if specified
+        if (excludeCategories && excludeCategories.length > 0) {
+          if (docCategory && excludeCategories.includes(docCategory)) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+
+      // Limit to original matchCount
+      chunks = chunks.slice(0, matchCount);
+    }
 
     if (error) {
       console.error("Error searching chunks:", error);

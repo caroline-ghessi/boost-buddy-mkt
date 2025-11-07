@@ -81,7 +81,42 @@ serve(async (req) => {
       throw new Error(`Agent configuration not found for ${task.agent_id}`);
     }
 
-    // Build enriched context
+    // Map agent to preferred categories
+    const agentCategoryMap: Record<string, { priority: string[], secondary: string[] }> = {
+      'camila': {
+        priority: ['Analytics', 'Google Ads', 'Meta Ads'],
+        secondary: ['Pesquisa de Mercado']
+      },
+      'thiago': {
+        priority: ['Análise Competitiva', 'Pesquisa de Mercado'],
+        secondary: ['Social Media']
+      },
+      'ana': {
+        priority: ['Pesquisa de Mercado', 'Análise Competitiva'],
+        secondary: ['Analytics', 'Social Media']
+      },
+      'renata': {
+        priority: ['Diretrizes de Marca', 'Empresa', 'Estratégia de Conteúdo'],
+        secondary: ['Social Media']
+      },
+      'pedro': {
+        priority: ['Google Ads', 'SEO'],
+        secondary: ['Diretrizes de Marca', 'Estratégia de Conteúdo']
+      },
+      'marina': {
+        priority: ['Meta Ads'],
+        secondary: ['Diretrizes de Marca', 'Estratégia de Conteúdo']
+      },
+      'lucas': {
+        priority: ['Social Media', 'Estratégia de Conteúdo'],
+        secondary: ['Diretrizes de Marca']
+      }
+    };
+
+    const agentId = task.agent_id.toLowerCase();
+    const categoryPrefs = agentCategoryMap[agentId] || { priority: [], secondary: [] };
+
+    // Build enriched context with category filtering
     const campaign = task.campaigns as any;
     const contextOptions = {
       userId: campaign.user_id,
@@ -92,6 +127,9 @@ serve(async (req) => {
       includeMetrics: true,
       includeCompetitors: true,
       includeSocialMedia: true,
+      preferredCategories: categoryPrefs.priority.length > 0 
+        ? categoryPrefs.priority 
+        : undefined,
     };
 
     console.log('Building context for task:', contextOptions);

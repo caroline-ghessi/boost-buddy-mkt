@@ -7,9 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RAGUploadWidget } from "@/components/rag/RAGUploadWidget";
+import { DocumentStatsCard } from "@/components/rag/DocumentStatsCard";
+import { EditDocumentModal } from "@/components/rag/EditDocumentModal";
+import { CATEGORY_OPTIONS } from "@/lib/ragCategories";
 import { toast } from "sonner";
-import { FileText, Search, Trash2, Eye, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { FileText, Search, Trash2, Eye, Loader2, CheckCircle, XCircle, Clock, Edit, Filter, Tag as TagIcon } from "lucide-react";
 
 interface RAGDocument {
   id: string;
@@ -33,6 +37,7 @@ interface RAGChunk {
 
 export default function KnowledgeBase() {
   const [documents, setDocuments] = useState<RAGDocument[]>([]);
+  const [filteredDocuments, setFilteredDocuments] = useState<RAGDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -40,6 +45,10 @@ export default function KnowledgeBase() {
   const [selectedDoc, setSelectedDoc] = useState<RAGDocument | null>(null);
   const [docChunks, setDocChunks] = useState<RAGChunk[]>([]);
   const [showChunksModal, setShowChunksModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterTag, setFilterTag] = useState<string>("");
+  const [titleFilter, setTitleFilter] = useState("");
 
   useEffect(() => {
     loadDocuments();
@@ -74,6 +83,7 @@ export default function KnowledgeBase() {
 
       if (error) throw error;
       setDocuments(data || []);
+      setFilteredDocuments(data || []);
     } catch (error) {
       console.error("Error loading documents:", error);
       toast.error("Erro ao carregar documentos");
@@ -81,6 +91,37 @@ export default function KnowledgeBase() {
       setLoading(false);
     }
   };
+
+  // Apply filters
+  useEffect(() => {
+    let filtered = [...documents];
+
+    // Filter by category
+    if (filterCategory !== "all") {
+      filtered = filtered.filter(doc => doc.category === filterCategory);
+    }
+
+    // Filter by tag
+    if (filterTag) {
+      filtered = filtered.filter(doc => 
+        doc.tags?.some(tag => tag.toLowerCase().includes(filterTag.toLowerCase()))
+      );
+    }
+
+    // Filter by title
+    if (titleFilter) {
+      filtered = filtered.filter(doc =>
+        doc.title.toLowerCase().includes(titleFilter.toLowerCase())
+      );
+    }
+
+    setFilteredDocuments(filtered);
+  }, [documents, filterCategory, filterTag, titleFilter]);
+
+  // Get all unique tags
+  const allTags = Array.from(
+    new Set(documents.flatMap(doc => doc.tags || []))
+  ).sort();
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -173,6 +214,8 @@ export default function KnowledgeBase() {
 
   return (
     <div className="space-y-6">
+      <DocumentStatsCard documents={documents} />
+
       <Tabs defaultValue="documents" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="documents">Documentos</TabsTrigger>
@@ -181,29 +224,94 @@ export default function KnowledgeBase() {
         </TabsList>
 
         <TabsContent value="documents" className="space-y-4">
+          <Card className="p-4">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold">Filtros</h3>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Buscar por título</label>
+                  <Input
+                    placeholder="Digite o nome..."
+                    value={titleFilter}
+                    onChange={(e) => setTitleFilter(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Categoria</label>
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tag</label>
+                  <Select value={filterTag} onValueChange={setFilterTag}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todas</SelectItem>
+                      {allTags.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          {tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {(filterCategory !== "all" || filterTag || titleFilter) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setFilterCategory("all");
+                    setFilterTag("");
+                    setTitleFilter("");
+                  }}
+                >
+                  Limpar Filtros
+                </Button>
+              )}
+            </div>
+          </Card>
           {loading ? (
             <Card>
               <CardContent className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </CardContent>
             </Card>
-          ) : documents.length === 0 ? (
+          ) : filteredDocuments.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <FileText className="h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Nenhum documento encontrado</h3>
                 <p className="text-muted-foreground mb-4">
-                  Faça upload de documentos para começar
+                  {documents.length === 0 
+                    ? "Faça upload de documentos para começar" 
+                    : "Nenhum documento corresponde aos filtros aplicados"}
                 </p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-4">
-              {documents.map((doc) => (
+              {filteredDocuments.map((doc) => (
                 <Card key={doc.id}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
-                      <div className="space-y-1">
+                      <div className="space-y-2 flex-1">
                         <CardTitle className="flex items-center gap-2">
                           {getStatusIcon(doc.status)}
                           {doc.title}
@@ -211,6 +319,20 @@ export default function KnowledgeBase() {
                         <CardDescription>
                           {doc.description || "Sem descrição"}
                         </CardDescription>
+                        <div className="flex flex-wrap gap-2">
+                          {doc.category && (
+                            <Badge variant="outline" className="gap-1">
+                              <FileText className="h-3 w-3" />
+                              {doc.category}
+                            </Badge>
+                          )}
+                          {doc.tags?.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="gap-1">
+                              <TagIcon className="h-3 w-3" />
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                       {getStatusBadge(doc.status)}
                     </div>
@@ -226,6 +348,16 @@ export default function KnowledgeBase() {
                         </span>
                       </div>
                       <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedDoc(doc);
+                            setShowEditModal(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
                         {doc.chunk_count > 0 && (
                           <Button
                             variant="outline"
@@ -312,6 +444,13 @@ export default function KnowledgeBase() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <EditDocumentModal
+        document={selectedDoc}
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        onSave={loadDocuments}
+      />
 
       <Dialog open={showChunksModal} onOpenChange={setShowChunksModal}>
         <DialogContent className="max-w-3xl">
