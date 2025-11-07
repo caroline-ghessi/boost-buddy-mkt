@@ -257,12 +257,11 @@ export default function KnowledgeBase() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Tag</label>
-                  <Select value={filterTag} onValueChange={setFilterTag}>
+                  <Select value={filterTag || undefined} onValueChange={(value) => setFilterTag(value || "")}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todas" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas</SelectItem>
                       {allTags.map((tag) => (
                         <SelectItem key={tag} value={tag}>
                           {tag}
