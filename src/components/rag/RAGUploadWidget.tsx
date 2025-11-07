@@ -46,9 +46,9 @@ export function RAGUploadWidget() {
       return;
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Arquivo muito grande. Máximo 10MB");
+    // Validate file size (max 15MB)
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("Arquivo muito grande. Máximo 15MB");
       return;
     }
 
@@ -201,7 +201,7 @@ export function RAGUploadWidget() {
               Arraste arquivos ou clique para selecionar
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Formatos: PDF, TXT, DOCX (máx. 10MB)
+              Formatos: PDF, TXT, DOCX (máx. 15MB)
             </p>
           </div>
 
