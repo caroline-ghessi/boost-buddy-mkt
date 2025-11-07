@@ -29,7 +29,6 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
   const [team, setTeam] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [yearsExperience, setYearsExperience] = useState(0);
-  const [status, setStatus] = useState<string>("idle");
   const [llmModel, setLlmModel] = useState("gpt-4");
   const [temperature, setTemperature] = useState(0.7);
   const [systemPrompt, setSystemPrompt] = useState("");
@@ -54,7 +53,6 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
       setTeam(agent.team || "");
       setSpecialty(agent.specialty || "");
       setYearsExperience(agent.years_experience || 0);
-      setStatus(agent.status || "idle");
       setLlmModel(agent.llm_model || "gpt-4");
       setTemperature(agent.temperature || 0.7);
       setSystemPrompt(agent.system_prompt || "");
@@ -74,7 +72,6 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
       setTeam("marketing");
       setSpecialty("general");
       setYearsExperience(0);
-      setStatus("idle");
       setLlmModel("gpt-4o");
       setTemperature(0.7);
       setSystemPrompt("You are a helpful AI assistant.");
@@ -129,7 +126,7 @@ export function AgentDetailModal({ agent, isOpen, onClose, onSave, onCreate, onU
           team,
           specialty,
           years_experience: yearsExperience,
-          status,
+          is_active: true,
           llm_model: llmModel,
           temperature,
           system_prompt: systemPrompt,

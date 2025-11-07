@@ -14,7 +14,7 @@ export default function Team() {
   // Estatísticas
   const stats = {
     totalAgents: agents.length,
-    activeAgents: agents.filter(a => a.status === 'active' || a.status === 'busy').length,
+    activeAgents: agents.filter(a => a.is_active).length,
     tasksToday: 23,
     uptime: "99.2%",
   };
@@ -85,7 +85,7 @@ export default function Team() {
               breed: agent.breed,
               breedTrait: agent.breed_trait,
               color: '#A1887F',
-              status: (agent.status as any) || 'idle',
+              status: agent.is_active ? 'active' : 'idle',
               yearsExperience: agent.years_experience || 0,
               team: agent.team,
               imageUrl: agent.avatar,

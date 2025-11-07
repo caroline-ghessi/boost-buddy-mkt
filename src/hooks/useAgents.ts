@@ -18,7 +18,7 @@ export interface Agent {
   years_experience?: number;
   llm_model?: string;
   temperature?: number;
-  status?: string;
+  is_active?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -39,7 +39,7 @@ interface DbAgent {
   years_experience?: number;
   llm_model?: string;
   temperature?: number;
-  status?: string;
+  is_active?: boolean;
   created_at?: string;
   updated_at?: string;
 }
