@@ -53,6 +53,29 @@ export const useGoogleMetrics = () => {
     }
   };
 
+  const handleExpiredToken = async () => {
+    try {
+      console.log('[useGoogleMetrics] Cleaning up expired token...');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('google_credentials')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('[useGoogleMetrics] Error deleting expired credentials:', error);
+      } else {
+        console.log('[useGoogleMetrics] Expired credentials removed successfully');
+      }
+
+      setMetrics(prev => ({ ...prev, isConnected: false }));
+    } catch (error) {
+      console.error('[useGoogleMetrics] Error in handleExpiredToken:', error);
+    }
+  };
+
   const connectGoogle = async () => {
     try {
       console.log('[useGoogleMetrics] Starting Google connection...');
@@ -120,6 +143,7 @@ export const useGoogleMetrics = () => {
 
       let gaSuccess = false;
       let adsSuccess = false;
+      let hasTokenError = false;
 
       // Sync Google Analytics
       try {
@@ -130,15 +154,24 @@ export const useGoogleMetrics = () => {
           body: {},
         });
 
-        if (!analyticsRes.error && analyticsRes.data) {
+        if (analyticsRes.error) {
+          const errorMsg = JSON.stringify(analyticsRes.error);
+          if (errorMsg.includes('Failed to refresh access token')) {
+            console.log('[useGoogleMetrics] Detected expired token in Analytics sync');
+            hasTokenError = true;
+          }
+        } else if (analyticsRes.data) {
           setMetrics(prev => ({
             ...prev,
             analytics: analyticsRes.data?.totals || null,
           }));
           gaSuccess = true;
         }
-      } catch (gaError) {
+      } catch (gaError: any) {
         console.error('Google Analytics sync error:', gaError);
+        if (gaError.message?.includes('Failed to refresh access token')) {
+          hasTokenError = true;
+        }
       }
 
       // Sync Google Ads (optional - may not be enabled)
@@ -150,18 +183,34 @@ export const useGoogleMetrics = () => {
           body: {},
         });
 
-        if (!adsRes.error && adsRes.data) {
+        if (adsRes.error) {
+          const errorMsg = JSON.stringify(adsRes.error);
+          if (errorMsg.includes('Failed to refresh access token')) {
+            console.log('[useGoogleMetrics] Detected expired token in Ads sync');
+            hasTokenError = true;
+          }
+        } else if (adsRes.data) {
           setMetrics(prev => ({
             ...prev,
             ads: adsRes.data?.totals || null,
           }));
           adsSuccess = true;
         }
-      } catch (adsError) {
+      } catch (adsError: any) {
         console.error('Google Ads sync error (optional):', adsError);
+        if (adsError.message?.includes('Failed to refresh access token')) {
+          hasTokenError = true;
+        }
       }
 
       setMetrics(prev => ({ ...prev, isLoading: false }));
+
+      // Handle expired token
+      if (hasTokenError) {
+        console.log('[useGoogleMetrics] Token expired, cleaning up...');
+        await handleExpiredToken();
+        throw new Error('TOKEN_EXPIRED');
+      }
 
       // Show success if at least Google Analytics worked
       if (gaSuccess) {
@@ -178,11 +227,17 @@ export const useGoogleMetrics = () => {
     } catch (error: any) {
       console.error('Error syncing metrics:', error);
       setMetrics(prev => ({ ...prev, isLoading: false }));
-      toast({
-        title: "Erro ao sincronizar",
-        description: error.message || "Não foi possível buscar as métricas do Google.",
-        variant: "destructive",
-      });
+      
+      // Don't show generic error toast for token expiration
+      if (error.message !== 'TOKEN_EXPIRED') {
+        toast({
+          title: "Erro ao sincronizar",
+          description: error.message || "Não foi possível buscar as métricas do Google.",
+          variant: "destructive",
+        });
+      }
+      
+      throw error;
     }
   };
 

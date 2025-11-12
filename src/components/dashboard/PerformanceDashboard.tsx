@@ -121,6 +121,17 @@ const PerformanceDashboard = () => {
   };
 
   const handleGoogleSync = async () => {
+    // If not connected, trigger connection flow
+    if (!isConnected) {
+      console.log('[PerformanceDashboard] Not connected, initiating OAuth flow...');
+      toast({
+        title: "Conectando ao Google",
+        description: "Você será redirecionado para autorizar o acesso.",
+      });
+      await syncGoogle();
+      return;
+    }
+
     setIsSyncingGoogle(true);
     try {
       await syncGoogle();
@@ -129,11 +140,22 @@ const PerformanceDashboard = () => {
         description: "Dados atualizados com sucesso!",
       });
     } catch (error: any) {
-      toast({
-        title: "Erro ao sincronizar Google Ads",
-        description: error.message || "Erro desconhecido",
-        variant: "destructive",
-      });
+      console.error('[PerformanceDashboard] Google sync error:', error);
+      
+      // Handle expired token
+      if (error.message === 'TOKEN_EXPIRED') {
+        toast({
+          title: "Token expirado",
+          description: "Sua sessão expirou. Clique no botão novamente para reconectar.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro ao sincronizar Google Ads",
+          description: error.message || "Erro desconhecido",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSyncingGoogle(false);
     }
@@ -326,7 +348,7 @@ const PerformanceDashboard = () => {
               size="sm"
             >
               {isSyncingGoogle ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              Google Ads
+              {isConnected ? 'Google Ads' : 'Conectar Google'}
             </Button>
             <Button 
               onClick={handleMetaSync}
