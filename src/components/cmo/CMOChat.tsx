@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Send, Paperclip, Download, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCMOChat } from "@/hooks/useCMOChat";
+import { useAgents } from "@/hooks/useAgents";
 import { ConversationHistorySidebar } from "./ConversationHistorySidebar";
 import { PackKPISidebar } from "./PackKPISidebar";
 import { QuickSuggestions } from "./QuickSuggestions";
@@ -10,7 +11,11 @@ import { ConversationHistoryCondensed } from "./ConversationHistoryCondensed";
 
 export default function CMOChat() {
   const { messages, isLoading, sendMessage } = useCMOChat();
+  const { agents } = useAgents();
   const [input, setInput] = useState("");
+
+  // Buscar CMO real (level_1)
+  const cmoAgent = agents.find(agent => agent.level === 'level_1' && agent.is_active);
 
   const handleSend = () => {
     if (input.trim()) {
@@ -33,13 +38,21 @@ export default function CMOChat() {
         {/* Header */}
         <div className="flex items-center gap-4 p-6 border-b border-gray-700/50">
           <div className="relative">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-3xl border-4 border-green-400">
-              🐕‍🦺
-            </div>
+            {cmoAgent?.avatar ? (
+              <img 
+                src={cmoAgent.avatar} 
+                alt={cmoAgent.name}
+                className="h-16 w-16 rounded-full object-cover border-4 border-green-400"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-3xl border-4 border-green-400">
+                {cmoAgent?.emoji || '🐕‍🦺'}
+              </div>
+            )}
             <span className="absolute bottom-0 right-0 h-4 w-4 bg-green-400 rounded-full border-2 border-[#1e1e1e]" />
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold text-white">Ricardo Mendes (CMO)</h2>
+            <h2 className="text-xl font-bold text-white">{cmoAgent?.name || 'CMO'} (CMO)</h2>
             <p className="text-sm text-green-400">Online e coordenando a matilha</p>
           </div>
           <div className="flex gap-2">
@@ -67,12 +80,20 @@ export default function CMOChat() {
           {messages.length === 0 && (
             <>
               <div className="flex justify-start items-end gap-3">
-                <div className="h-10 w-10 rounded-full bg-[#A1887F] flex items-center justify-center text-xl">
-                  🐕‍🦺
-                </div>
+                {cmoAgent?.avatar ? (
+                  <img 
+                    src={cmoAgent.avatar} 
+                    alt={cmoAgent.name}
+                    className="h-10 w-10 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-[#A1887F] flex items-center justify-center text-xl">
+                    {cmoAgent?.emoji || '🐕‍🦺'}
+                  </div>
+                )}
                 <div className="chat-bubble-ai max-w-2xl">
                   <p className="text-sm">
-                    Olá! Sou o Ricardo Mendes, seu CMO. Estou aqui para coordenar toda a
+                    Olá! Sou o {cmoAgent?.name || 'CMO'}, seu CMO. Estou aqui para coordenar toda a
                     matilha e executar suas estratégias de marketing. Como posso ajudá-lo hoje?
                   </p>
                   <span className="text-xs text-gray-400 mt-2 block">
@@ -95,9 +116,17 @@ export default function CMOChat() {
               } items-end gap-3`}
             >
               {message.role === "assistant" && (
-                <div className="h-10 w-10 rounded-full bg-[#A1887F] flex items-center justify-center flex-shrink-0">
-                  🐕‍🦺
-                </div>
+                cmoAgent?.avatar ? (
+                  <img 
+                    src={cmoAgent.avatar} 
+                    alt={cmoAgent.name}
+                    className="h-10 w-10 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="h-10 w-10 rounded-full bg-[#A1887F] flex items-center justify-center flex-shrink-0">
+                    {cmoAgent?.emoji || '🐕‍🦺'}
+                  </div>
+                )
               )}
               <div
                 className={`p-4 rounded-lg max-w-2xl ${
@@ -130,9 +159,17 @@ export default function CMOChat() {
           {/* Loading Indicator */}
           {isLoading && (
             <div className="flex justify-start items-end gap-3">
-              <div className="h-10 w-10 rounded-full bg-[#A1887F] flex items-center justify-center">
-                🐕‍🦺
-              </div>
+              {cmoAgent?.avatar ? (
+                <img 
+                  src={cmoAgent.avatar} 
+                  alt={cmoAgent.name}
+                  className="h-10 w-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-10 w-10 rounded-full bg-[#A1887F] flex items-center justify-center">
+                  {cmoAgent?.emoji || '🐕‍🦺'}
+                </div>
+              )}
               <div className="chat-bubble-ai p-4 rounded-lg typing-indicator">
                 <div className="flex gap-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
@@ -166,7 +203,7 @@ export default function CMOChat() {
                   handleSend();
                 }
               }}
-              placeholder="Digite sua solicitação para Ricardo Mendes..."
+              placeholder={`Digite sua solicitação para ${cmoAgent?.name || 'o CMO'}...`}
               className="w-full bg-[#2a2a2a] border border-gray-600 rounded-lg py-4 pl-4 pr-20 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#A1887F]"
               disabled={isLoading}
             />
@@ -185,7 +222,7 @@ export default function CMOChat() {
           </div>
           <div className="flex justify-between items-center mt-3">
             <QuickSuggestions onSuggestionClick={handleSuggestionClick} />
-            <span className="text-xs text-gray-400">Ricardo está online</span>
+            <span className="text-xs text-gray-400">{cmoAgent?.name || 'CMO'} está online</span>
           </div>
         </div>
       </section>
