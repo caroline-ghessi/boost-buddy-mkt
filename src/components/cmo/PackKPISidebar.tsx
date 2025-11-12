@@ -1,13 +1,17 @@
-interface PackKPISidebarProps {
-  agentImages?: Record<string, string>;
-}
+import { useAgents } from "@/hooks/useAgents";
 
-export function PackKPISidebar({ agentImages }: PackKPISidebarProps) {
-  const agents = [
-    { name: "Sparky", tasks: 15, image: agentImages?.sparky },
-    { name: "Luna", tasks: 12, image: agentImages?.luna },
-    { name: "Zeus", tasks: 9, image: agentImages?.zeus },
-  ];
+export function PackKPISidebar() {
+  const { agents: dbAgents } = useAgents();
+  
+  // Top 3 active agents with their images from database
+  const topAgents = dbAgents
+    .filter(a => a.is_active)
+    .slice(0, 3)
+    .map((agent, idx) => ({
+      name: agent.name,
+      tasks: 15 - idx * 3, // Mock task count
+      image: agent.avatar || undefined
+    }));
 
   return (
     <section className="w-80 bg-[#1e1e1e] rounded-xl border border-gray-700/50 flex flex-col">
@@ -75,7 +79,7 @@ export function PackKPISidebar({ agentImages }: PackKPISidebarProps) {
         <div className="space-y-2">
           <h4 className="font-semibold text-white">Agentes Mais Ativos</h4>
           <div className="space-y-2">
-            {agents.map((agent) => (
+            {topAgents.map((agent) => (
               <div key={agent.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="h-6 w-6 rounded-full bg-[#A1887F] flex items-center justify-center text-xs">

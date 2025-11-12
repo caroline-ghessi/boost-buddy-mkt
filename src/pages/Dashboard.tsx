@@ -1,14 +1,19 @@
 import { Card } from "@/components/ui/card";
 import { ArrowUp, ArrowDown, Send } from "lucide-react";
 import { BuddyAgentCard } from "@/components/buddy/BuddyAgentCard";
-import { getAgentsByLevel } from "@/lib/buddyAgents";
+import { useAgents } from "@/hooks/useAgents";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function Dashboard() {
-  const level3Agents = getAgentsByLevel(3).slice(0, 5);
+  const { agents, loading } = useAgents();
   const [chatInput, setChatInput] = useState("");
+
+  // Filter level 3 active agents
+  const level3Agents = agents
+    .filter(agent => agent.level === 'level_3' && agent.is_active)
+    .slice(0, 5);
 
   const metrics = [
     { label: "Ad Spend", value: "$12,450", change: "+5.2%", isPositive: true },
@@ -115,9 +120,32 @@ export default function Dashboard() {
           </a>
         </div>
         <div className="grid grid-cols-5 gap-4">
-          {level3Agents.map((agent) => (
-            <BuddyAgentCard key={agent.id} agent={agent} />
-          ))}
+          {loading ? (
+            <p className="text-gray-400 col-span-5 text-center">Carregando agentes...</p>
+          ) : level3Agents.length === 0 ? (
+            <p className="text-gray-400 col-span-5 text-center">Nenhum agente encontrado</p>
+          ) : (
+            level3Agents.map((agent) => (
+              <BuddyAgentCard 
+                key={agent.id} 
+                agent={{
+                  id: agent.agent_id,
+                  name: agent.name,
+                  role: agent.role,
+                  level: 3,
+                  specialty: Array.isArray(agent.specialty) ? agent.specialty.join(', ') : agent.specialty || '',
+                  emoji: agent.emoji,
+                  breed: agent.breed,
+                  breedTrait: agent.breed_trait,
+                  color: '#A1887F',
+                  status: agent.is_active ? 'active' : 'idle',
+                  yearsExperience: agent.years_experience || 0,
+                  team: agent.team,
+                  imageUrl: agent.avatar || undefined
+                }}
+              />
+            ))
+          )}
         </div>
       </section>
     </div>
