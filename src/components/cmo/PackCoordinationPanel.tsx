@@ -1,4 +1,5 @@
 import { Users } from "lucide-react";
+import { useAgents } from "@/hooks/useAgents";
 
 interface AgentActivity {
   name: string;
@@ -8,31 +9,20 @@ interface AgentActivity {
   image?: string;
 }
 
-const mockActivities: AgentActivity[] = [
-  {
-    name: "Sparky",
-    role: "SEO",
-    status: "active",
-    activity: "Analisando palavras-chave para o novo produto. Identificando oportunidades de ranking...",
-    image: "https://storage.googleapis.com/uxpilot-auth.appspot.com/ea886268d4-149ab5e27ad9e08bf054.png",
-  },
-  {
-    name: "Luna",
-    role: "Content",
-    status: "creating",
-    activity: "Desenvolvendo calendário de conteúdo e copy para landing page do produto...",
-    image: "https://storage.googleapis.com/uxpilot-auth.appspot.com/097ef8700a-270b1103ccad4933f76b.png",
-  },
-  {
-    name: "Zeus",
-    role: "Ads",
-    status: "planning",
-    activity: "Estruturando campanhas no Google Ads e Meta Ads. Definindo audiências e orçamentos...",
-    image: "https://storage.googleapis.com/uxpilot-auth.appspot.com/c08e99d3f5-82d1187b0160d3348a04.png",
-  },
-];
-
 export function PackCoordinationPanel() {
+  const { agents } = useAgents();
+  
+  // Get 3 active agents with their images from database
+  const activeAgents: AgentActivity[] = agents
+    .filter(a => a.is_active)
+    .slice(0, 3)
+    .map((agent, idx) => ({
+      name: agent.name,
+      role: agent.role,
+      status: (idx === 0 ? "active" : idx === 1 ? "creating" : "planning") as AgentActivity["status"],
+      activity: `Trabalhando em tarefas de ${Array.isArray(agent.specialty) ? agent.specialty[0] : agent.specialty || agent.role}...`,
+      image: agent.avatar || undefined
+    }));
   const getStatusColor = (status: AgentActivity["status"]) => {
     switch (status) {
       case "active":
@@ -65,7 +55,7 @@ export function PackCoordinationPanel() {
         <span className="font-semibold text-white text-lg">Coordenação da Matilha</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {mockActivities.map((agent) => (
+        {activeAgents.map((agent) => (
           <div key={agent.name} className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-full bg-[#A1887F] flex items-center justify-center flex-shrink-0">
               {agent.image ? (
