@@ -10,6 +10,9 @@ export default function Dashboard() {
   const { agents, loading } = useAgents();
   const [chatInput, setChatInput] = useState("");
 
+  // Buscar CMO real (level_1)
+  const cmoAgent = agents.find(agent => agent.level === 'level_1' && agent.is_active);
+  
   // Filter level 3 active agents
   const level3Agents = agents
     .filter(agent => agent.level === 'level_3' && agent.is_active)
@@ -27,13 +30,21 @@ export default function Dashboard() {
       <section className="col-span-2 row-span-2 bg-[#1e1e1e] rounded-xl p-6 flex flex-col border border-gray-700/50">
         <div className="flex items-start gap-4 mb-4">
           <div className="relative">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-3xl border-4 border-green-400">
-              🐕‍🦺
-            </div>
+            {cmoAgent?.avatar ? (
+              <img 
+                src={cmoAgent.avatar} 
+                alt={cmoAgent.name}
+                className="h-16 w-16 rounded-full object-cover border-4 border-green-400"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#A1887F] to-[#8D6E63] flex items-center justify-center text-3xl border-4 border-green-400">
+                {cmoAgent?.emoji || '🐕‍🦺'}
+              </div>
+            )}
             <span className="absolute bottom-0 right-0 h-4 w-4 bg-green-400 rounded-full border-2 border-[#1e1e1e]" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">Chat with Ricardo (CMO)</h2>
+            <h2 className="text-xl font-bold text-white">Chat with {cmoAgent?.name || 'CMO'} (CMO)</h2>
             <p className="text-sm text-green-400">Online and ready to lead the pack.</p>
           </div>
         </div>
@@ -41,9 +52,17 @@ export default function Dashboard() {
         {/* Chat Window */}
         <div className="flex-1 bg-[#121212] rounded-lg p-4 space-y-4 overflow-y-auto mb-4">
           <div className="flex justify-start items-end gap-2">
-            <div className="h-8 w-8 rounded-full bg-[#A1887F] flex items-center justify-center">
-              🐕‍🦺
-            </div>
+            {cmoAgent?.avatar ? (
+              <img 
+                src={cmoAgent.avatar} 
+                alt={cmoAgent.name}
+                className="h-8 w-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-[#A1887F] flex items-center justify-center">
+                {cmoAgent?.emoji || '🐕‍🦺'}
+              </div>
+            )}
             <div className="chat-bubble-ai max-w-md">
               <p className="text-sm">Alright team, let's get this quarter's campaign strategy outlined. What are our primary objectives?</p>
             </div>
@@ -57,9 +76,17 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex justify-start items-end gap-2">
-            <div className="h-8 w-8 rounded-full bg-[#A1887F] flex items-center justify-center">
-              🐕‍🦺
-            </div>
+            {cmoAgent?.avatar ? (
+              <img 
+                src={cmoAgent.avatar} 
+                alt={cmoAgent.name}
+                className="h-8 w-8 rounded-full object-cover"
+              />
+            ) : (
+              <div className="h-8 w-8 rounded-full bg-[#A1887F] flex items-center justify-center">
+                {cmoAgent?.emoji || '🐕‍🦺'}
+              </div>
+            )}
             <div className="chat-bubble-ai max-w-md">
               <p className="text-sm">Good. I'll have Sparky (our SEO specialist) and Luna (our content creator) start working on a content plan. I'm assigning them tasks now.</p>
             </div>
