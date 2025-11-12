@@ -34,21 +34,43 @@ export const useGoogleMetrics = () => {
   const checkConnection = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setMetrics(prev => ({ ...prev, isConnected: false }));
+        return false;
+      }
 
       const { data, error } = await supabase
         .from('google_credentials')
-        .select('id')
+        .select('expires_at')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (!error && data) {
-        setMetrics(prev => ({ ...prev, isConnected: true }));
-        return true;
+      if (error) {
+        console.error('Error checking connection:', error);
+        setMetrics(prev => ({ ...prev, isConnected: false }));
+        return false;
       }
-      return false;
+
+      if (!data) {
+        setMetrics(prev => ({ ...prev, isConnected: false }));
+        return false;
+      }
+
+      // Check if token is expired
+      const expiresAt = new Date(data.expires_at);
+      const now = new Date();
+      
+      if (expiresAt <= now) {
+        console.log('[useGoogleMetrics] Token expired, cleaning up automatically...');
+        await handleExpiredToken();
+        return false;
+      }
+
+      setMetrics(prev => ({ ...prev, isConnected: true }));
+      return true;
     } catch (error) {
       console.error('Error checking connection:', error);
+      setMetrics(prev => ({ ...prev, isConnected: false }));
       return false;
     }
   };
