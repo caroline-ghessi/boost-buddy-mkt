@@ -120,38 +120,35 @@ const PerformanceDashboard = () => {
     }
   };
 
-  const handleGoogleSync = async () => {
-    // If not connected, trigger connection flow
-    if (!isConnected) {
-      console.log('[PerformanceDashboard] Not connected, initiating OAuth flow...');
-      toast({
-        title: "Conectando ao Google",
-        description: "Você será redirecionado para autorizar o acesso.",
-      });
-      await connectGoogle();
-      return;
-    }
+  const handleGoogleConnect = async () => {
+    console.log('[PerformanceDashboard] Initiating OAuth flow...');
+    toast({
+      title: "Conectando ao Google",
+      description: "Você será redirecionado para autorizar o acesso.",
+    });
+    await connectGoogle();
+  };
 
+  const handleGoogleUpdate = async () => {
     setIsSyncingGoogle(true);
     try {
       await syncGoogle();
       toast({
-        title: "Google Ads sincronizado",
-        description: "Dados atualizados com sucesso!",
+        title: "Google Ads atualizado",
+        description: "Dados sincronizados com sucesso!",
       });
     } catch (error: any) {
       console.error('[PerformanceDashboard] Google sync error:', error);
       
-      // Handle expired token
       if (error.message === 'TOKEN_EXPIRED') {
         toast({
           title: "Token expirado",
-          description: "Sua sessão expirou. Clique no botão novamente para reconectar.",
+          description: "Use o botão 'Reconectar Google' para autorizar novamente.",
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Erro ao sincronizar Google Ads",
+          title: "Erro ao sincronizar",
           description: error.message || "Erro desconhecido",
           variant: "destructive",
         });
@@ -341,15 +338,29 @@ const PerformanceDashboard = () => {
         {/* Top Actions */}
         <div className="flex justify-between items-center">
           <div className="flex gap-2 items-center">
-            <Button 
-              onClick={handleGoogleSync}
-              disabled={isSyncingGoogle}
-              variant="outline"
-              size="sm"
-            >
-              {isSyncingGoogle ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              {isConnected ? 'Google Ads' : 'Conectar Google'}
-            </Button>
+            {!isConnected && (
+              <Button 
+                onClick={handleGoogleConnect}
+                disabled={isSyncingGoogle}
+                variant="outline"
+                size="sm"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reconectar Google
+              </Button>
+            )}
+            
+            {isConnected && (
+              <Button 
+                onClick={handleGoogleUpdate}
+                disabled={isSyncingGoogle}
+                variant="outline"
+                size="sm"
+              >
+                {isSyncingGoogle ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Atualizar Google
+              </Button>
+            )}
             <Button 
               onClick={handleMetaSync}
               disabled={isSyncingMeta}
@@ -384,7 +395,7 @@ const PerformanceDashboard = () => {
             title="Nenhum dado disponível"
             description="Conecte suas contas de Google Ads e Meta Ads para visualizar suas métricas de performance."
             actionLabel="Conectar Google Ads"
-            onAction={handleGoogleSync}
+            onAction={handleGoogleConnect}
           />
         ) : (
           <>
