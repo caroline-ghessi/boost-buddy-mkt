@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { buildAgentContext } from '../_shared/context-builder.ts';
 import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from '../_shared/llm-router.ts';
 import { logExecution, calculateCost } from '../_shared/execution-logger.ts';
+import { retrieveMemory, storeMemory, formatMemoryForContext } from '../_shared/memory-manager.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -139,6 +140,16 @@ serve(async (req) => {
     const contextStartTime = Date.now();
     const contextData = await buildAgentContext(contextOptions, supabase);
     const contextDuration = Date.now() - contextStartTime;
+
+    // Carregar memória compartilhada da campanha
+    console.log('Loading shared memory for campaign:', task.campaign_id);
+    const sharedMemories = await retrieveMemory(
+      supabase,
+      task.campaign_id,
+      task.agent_id,
+      { minRelevance: 0.5 }
+    );
+    const memoryContext = formatMemoryForContext(sharedMemories);
     
     await logExecution({
       supabase,
@@ -161,6 +172,7 @@ serve(async (req) => {
     const systemPrompt = `${agentConfig.system_prompt}
 
 ${contextData.fullContext}
+${memoryContext}
 
 # INSTRUÇÕES PARA ESTA TAREFA:
 Tarefa: ${task.title}
@@ -174,6 +186,7 @@ Contexto Adicional: ${JSON.stringify(task.context || {}, null, 2)}
 - Compare com dados de competidores
 - Referencie conhecimento da base RAG
 - Considere tendências das redes sociais
+- Use insights da memória compartilhada se disponíveis
 - Baseie recomendações em dados reais, não em suposições`;
 
     const userMessage = `Execute a seguinte tarefa:
@@ -326,6 +339,22 @@ Forneça uma resposta detalhada, acionável e baseada nos dados disponíveis.`;
       throw error;
     }
 
+    // Extrair e salvar insights importantes na memória compartilhada
+    if (agentResponse && agentResponse.length > 100) {
+      console.log('Storing insights in shared memory...');
+      await storeMemory(supabase, task.campaign_id, task.agent_id, {
+        key: `${task.agent_id}_insight_${Date.now()}`,
+        value: {
+          task_id: task.id,
+          task_title: task.title,
+          summary: agentResponse.substring(0, 500), // Primeiros 500 chars
+          full_response_length: agentResponse.length
+        },
+        type: 'insight',
+        relevanceScore: 0.8
+      });
+    }
+
     // Save result
     const result = {
       response: agentResponse,
@@ -334,6 +363,8 @@ Forneça uma resposta detalhada, acionável e baseada nos dados disponíveis.`;
         metrics_included: contextData.metricsContext ? 'yes' : 'no',
         competitors_included: contextData.competitorsContext ? 'yes' : 'no',
         social_media_included: contextData.socialMediaContext ? 'yes' : 'no',
+        shared_memory_used: sharedMemories.length > 0 ? 'yes' : 'no',
+        shared_memory_count: sharedMemories.length
       },
       model_used: model,
       processed_at: new Date().toISOString(),
