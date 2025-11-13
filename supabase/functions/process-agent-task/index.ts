@@ -4,6 +4,7 @@ import { buildAgentContext } from '../_shared/context-builder.ts';
 import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepareGeminiRequest, isAnthropicDirect, isGeminiDirect } from '../_shared/llm-router.ts';
 import { logExecution, calculateCost } from '../_shared/execution-logger.ts';
 import { retrieveMemory, storeMemory, formatMemoryForContext } from '../_shared/memory-manager.ts';
+import { getPendingQuestions, respondToMessage } from '../_shared/agent-messenger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -71,6 +72,172 @@ serve(async (req) => {
       .eq('id', taskId);
 
     console.log(`Processing task ${taskId} for agent ${task.agent_id}`);
+
+    // FASE 2: Verificar perguntas pendentes antes de executar tarefa principal
+    console.log('Checking for pending questions...');
+    try {
+      const pendingQuestions = await getPendingQuestions(
+        supabase,
+        task.agent_id,
+        task.campaign_id
+      );
+
+      if (pendingQuestions.length > 0) {
+        console.log(`Found ${pendingQuestions.length} pending questions. Processing...`);
+        
+        // Processar cada pergunta pendente
+        for (const question of pendingQuestions) {
+          console.log(`Processing question from ${question.from_agent}:`, question.content);
+          
+          try {
+            // Buscar configuração do agente
+            const { data: agentConfigForQuestion } = await supabase
+              .from('agent_configs')
+              .select('*')
+              .eq('agent_id', task.agent_id)
+              .single();
+
+            if (!agentConfigForQuestion) {
+              throw new Error('Agent config not found');
+            }
+
+            // Construir contexto para responder a pergunta
+            const questionContext = await buildAgentContext(
+              {
+                userId: task.campaigns.user_id,
+                taskType: 'respond_to_question',
+                campaignId: task.campaign_id,
+                query: question.content,
+                includeRAG: true,
+                includeMetrics: false,
+                includeCompetitors: false,
+                includeSocialMedia: false
+              },
+              supabase
+            );
+
+            // Buscar memória compartilhada
+            const sharedMemories = await retrieveMemory(
+              supabase,
+              task.campaign_id,
+              task.agent_id
+            );
+            const memoryContext = formatMemoryForContext(sharedMemories);
+
+            // Criar prompt para responder a pergunta
+            const questionPrompt = `Você recebeu a seguinte pergunta do agente ${question.from_agent}:
+
+"${question.content}"
+
+${memoryContext}
+
+Contexto disponível:
+${questionContext}
+
+Forneça uma resposta clara, objetiva e útil para ajudar o agente a completar sua tarefa.`;
+
+            // Preparar chamada para LLM
+            const llmProvider = agentConfigForQuestion.llm_provider || 'openai';
+            const llmModel = agentConfigForQuestion.llm_model || 'gpt-4o-mini';
+            const endpoint = getLLMEndpoint(llmProvider);
+            const apiKey = getAPIKey(llmProvider);
+            const headers = getHeaders(llmProvider, apiKey);
+
+            const systemPrompt = agentConfigForQuestion.system_prompt || 'You are a helpful AI assistant.';
+            const messages = [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: questionPrompt }
+            ];
+
+            let requestBody: any;
+            if (isAnthropicDirect(llmProvider)) {
+              requestBody = prepareAnthropicRequest(messages);
+            } else if (isGeminiDirect(llmProvider)) {
+              requestBody = prepareGeminiRequest(messages);
+            } else {
+              requestBody = {
+                model: llmModel,
+                messages: messages
+              };
+            }
+
+            // Chamar LLM
+            const llmResponse = await fetch(endpoint, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(requestBody)
+            });
+
+            if (!llmResponse.ok) {
+              const errorText = await llmResponse.text();
+              console.error('LLM API error:', llmResponse.status, errorText);
+              throw new Error(`LLM API error: ${llmResponse.status}`);
+            }
+
+            const llmData = await llmResponse.json();
+            let responseText: string;
+            let tokensUsed = 0;
+
+            if (isAnthropicDirect(llmProvider)) {
+              responseText = llmData.content?.[0]?.text || 'Unable to generate response';
+              tokensUsed = (llmData.usage?.input_tokens || 0) + (llmData.usage?.output_tokens || 0);
+            } else if (isGeminiDirect(llmProvider)) {
+              responseText = llmData.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to generate response';
+              tokensUsed = llmData.usageMetadata?.totalTokenCount || 0;
+            } else {
+              responseText = llmData.choices?.[0]?.message?.content || 'Unable to generate response';
+              tokensUsed = llmData.usage?.total_tokens || 0;
+            }
+
+            // Enviar resposta
+            await respondToMessage(
+              supabase,
+              question.id,
+              task.agent_id,
+              responseText,
+              {
+                processed_at: new Date().toISOString(),
+                context_used: true
+              }
+            );
+
+            console.log(`Responded to question ${question.id}`);
+
+            // Log da execução
+            await logExecution({
+              supabase,
+              agentId: task.agent_id,
+              taskId,
+              campaignId: task.campaign_id,
+              toolName: 'respond_to_question',
+              input: { question_id: question.id, question: question.content },
+              output: { response: responseText },
+              tokensUsed: tokensUsed,
+              costUsd: calculateCost(tokensUsed, llmModel),
+              status: 'success'
+            });
+
+          } catch (error) {
+            console.error(`Error responding to question ${question.id}:`, error);
+            
+            // Log do erro
+            await logExecution({
+              supabase,
+              agentId: task.agent_id,
+              taskId,
+              campaignId: task.campaign_id,
+              toolName: 'respond_to_question',
+              input: { question_id: question.id },
+              status: 'failed',
+              errorMessage: error instanceof Error ? error.message : 'Unknown error'
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing pending questions:', error);
+      // Não falhar a tarefa toda por conta de perguntas pendentes
+    }
 
     // Fetch agent configuration
     const { data: agentConfig, error: agentError } = await supabase
