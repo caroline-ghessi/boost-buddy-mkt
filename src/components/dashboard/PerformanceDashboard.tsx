@@ -18,7 +18,7 @@ import { calculateMetricChange, formatNumber } from "@/lib/analyticsCalculations
 
 const PerformanceDashboard = () => {
   const { dateRange, setDateRange } = useAnalyticsDate();
-  const { analytics, ads: googleAds, isConnected, syncMetrics: syncGoogle, loadCachedMetrics: loadGoogle } = useGoogleMetrics();
+  const { analytics, ads: googleAds, isConnected, connectGoogle, syncMetrics: syncGoogle, loadCachedMetrics: loadGoogle } = useGoogleMetrics();
   const { ads: metaAds, syncMetrics: syncMeta, refreshMetrics: refreshMeta } = useMetaMetrics();
   const { instagram, linkedin, youtube, isLoading: socialLoading, syncMetrics: syncSocial, refreshMetrics: refreshSocial } = useSocialMediaMetrics();
   const { toast } = useToast();
@@ -128,7 +128,7 @@ const PerformanceDashboard = () => {
         title: "Conectando ao Google",
         description: "Você será redirecionado para autorizar o acesso.",
       });
-      await syncGoogle();
+      await connectGoogle();
       return;
     }
 
