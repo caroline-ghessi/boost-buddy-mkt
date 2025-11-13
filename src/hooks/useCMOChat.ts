@@ -27,29 +27,6 @@ export const useCMOChat = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
 
-    let assistantContent = "";
-
-    const updateAssistantMessage = (content: string) => {
-      assistantContent = content;
-      setMessages(prev => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant") {
-          return prev.map((m, i) =>
-            i === prev.length - 1 ? { ...m, content: assistantContent } : m
-          );
-        }
-        return [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "assistant",
-            content: assistantContent,
-            timestamp: new Date(),
-          },
-        ];
-      });
-    };
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -76,66 +53,29 @@ export const useCMOChat = () => {
         throw new Error(errorData.error || "Failed to get response");
       }
 
-      if (!response.body) throw new Error("No response body");
+      const data = await response.json();
+      
+      // Add assistant message
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.message,
+        timestamp: new Date(),
+      };
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = "";
-      let streamDone = false;
-
-      while (!streamDone) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        textBuffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") {
-            streamDone = true;
-            break;
-          }
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) {
-              updateAssistantMessage(assistantContent + content);
-            }
-          } catch {
-            textBuffer = line + "\n" + textBuffer;
-            break;
-          }
-        }
-      }
-
-      // Final flush
-      if (textBuffer.trim()) {
-        for (let raw of textBuffer.split("\n")) {
-          if (!raw || raw.startsWith(":") || !raw.startsWith("data: ")) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) updateAssistantMessage(assistantContent + content);
-          } catch { /* ignore */ }
-        }
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Show info about delegations if any
+      if (data.delegations > 0) {
+        toast.success(`🐕 ${data.delegations} ${data.delegations === 1 ? 'tarefa delegada' : 'tarefas delegadas'} para a equipe Buddy AI`, {
+          description: "Os agentes começarão a trabalhar nas tarefas em breve"
+        });
       }
 
     } catch (error) {
-      console.error("Chat error:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao enviar mensagem");
-      
-      // Remove user message on error
+      console.error("Error sending message:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to send message");
+      // Remove the user message on error
       setMessages(prev => prev.filter(m => m.id !== userMessage.id));
     } finally {
       setIsLoading(false);
