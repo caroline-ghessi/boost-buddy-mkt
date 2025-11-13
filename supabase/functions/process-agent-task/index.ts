@@ -5,6 +5,7 @@ import { getLLMEndpoint, getAPIKey, getHeaders, prepareAnthropicRequest, prepare
 import { logExecution, calculateCost } from '../_shared/execution-logger.ts';
 import { retrieveMemory, storeMemory, formatMemoryForContext } from '../_shared/memory-manager.ts';
 import { getPendingQuestions, respondToMessage } from '../_shared/agent-messenger.ts';
+import { agentTools, executeAgentTool, prepareToolsForAPI } from '../_shared/agent-tools.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -382,7 +383,8 @@ Forneça uma resposta detalhada, acionável e baseada nos dados disponíveis.`;
         generationConfig: {
           temperature: agentConfig.temperature || 0.7,
           maxOutputTokens: agentConfig.max_tokens || 2000,
-        }
+        },
+        // Gemini não suporta tool calling no mesmo formato
       };
     } else if (isAnthropicDirect(model)) {
       const prepared = prepareAnthropicRequest([
@@ -393,7 +395,8 @@ Forneça uma resposta detalhada, acionável e baseada nos dados disponíveis.`;
         model,
         max_tokens: agentConfig.max_tokens || 2000,
         temperature: agentConfig.temperature || 0.7,
-        ...prepared
+        ...prepared,
+        tools: prepareToolsForAPI('anthropic', agentTools)
       };
     } else {
       // OpenAI-compatible
@@ -405,6 +408,8 @@ Forneça uma resposta detalhada, acionável e baseada nos dados disponíveis.`;
         ],
         temperature: agentConfig.temperature || 0.7,
         max_tokens: agentConfig.max_tokens || 2000,
+        tools: agentTools,
+        tool_choice: 'auto'
       };
     }
 
@@ -451,11 +456,156 @@ Forneça uma resposta detalhada, acionável e baseada nos dados disponíveis.`;
         agentResponse = llmData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         tokensUsed = llmData.usageMetadata?.totalTokenCount || 0;
       } else if (isAnthropicDirect(model)) {
-        agentResponse = llmData.content?.[0]?.text || '';
-        tokensUsed = (llmData.usage?.input_tokens || 0) + (llmData.usage?.output_tokens || 0);
+        // Verificar se há tool calls
+        const toolUse = llmData.content?.find((c: any) => c.type === 'tool_use');
+        
+        if (toolUse) {
+          console.log('LLM requested tool use:', toolUse.name);
+          
+          // Executar tool
+          const toolResult = await executeAgentTool(
+            supabase,
+            toolUse.name,
+            toolUse.input,
+            {
+              agentId: task.agent_id,
+              taskId: task.id,
+              campaignId: task.campaign_id
+            }
+          );
+
+          // Log da execução da tool
+          await logExecution({
+            supabase,
+            agentId: task.agent_id,
+            taskId: task.id,
+            campaignId: task.campaign_id,
+            toolName: toolUse.name,
+            input: toolUse.input,
+            output: toolResult.result,
+            status: toolResult.success ? 'success' : 'failed',
+            errorMessage: toolResult.error
+          });
+
+          // Continuar conversa com resultado da tool
+          const prepared = prepareAnthropicRequest([
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ]);
+
+          const continuationBody = {
+            model,
+            max_tokens: agentConfig.max_tokens || 2000,
+            ...prepared,
+            messages: [
+              ...prepared.messages,
+              { role: 'assistant', content: llmData.content },
+              {
+                role: 'user',
+                content: [{
+                  type: 'tool_result',
+                  tool_use_id: toolUse.id,
+                  content: JSON.stringify(toolResult.result)
+                }]
+              }
+            ],
+            tools: prepareToolsForAPI('anthropic', agentTools)
+          };
+
+          const continuationResponse = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(continuationBody)
+          });
+
+          if (continuationResponse.ok) {
+            const continuationData = await continuationResponse.json();
+            agentResponse = continuationData.content?.find((c: any) => c.type === 'text')?.text || '';
+            tokensUsed = (llmData.usage?.input_tokens || 0) + (llmData.usage?.output_tokens || 0) +
+                        (continuationData.usage?.input_tokens || 0) + (continuationData.usage?.output_tokens || 0);
+          } else {
+            agentResponse = `Tool executed: ${toolResult.success ? 'Success' : 'Failed'}. ${JSON.stringify(toolResult.result)}`;
+            tokensUsed = (llmData.usage?.input_tokens || 0) + (llmData.usage?.output_tokens || 0);
+          }
+        } else {
+          agentResponse = llmData.content?.[0]?.text || '';
+          tokensUsed = (llmData.usage?.input_tokens || 0) + (llmData.usage?.output_tokens || 0);
+        }
       } else {
-        agentResponse = llmData.choices?.[0]?.message?.content || '';
-        tokensUsed = llmData.usage?.total_tokens || 0;
+        // OpenAI format - verificar tool calls
+        const choice = llmData.choices?.[0];
+        
+        if (choice?.message?.tool_calls && choice.message.tool_calls.length > 0) {
+          console.log('LLM requested tool calls:', choice.message.tool_calls.length);
+          
+          const toolResults = [];
+          
+          // Executar todas as tools solicitadas
+          for (const toolCall of choice.message.tool_calls) {
+            const toolResult = await executeAgentTool(
+              supabase,
+              toolCall.function.name,
+              JSON.parse(toolCall.function.arguments),
+              {
+                agentId: task.agent_id,
+                taskId: task.id,
+                campaignId: task.campaign_id
+              }
+            );
+
+            // Log da execução da tool
+            await logExecution({
+              supabase,
+              agentId: task.agent_id,
+              taskId: task.id,
+              campaignId: task.campaign_id,
+              toolName: toolCall.function.name,
+              input: JSON.parse(toolCall.function.arguments),
+              output: toolResult.result,
+              status: toolResult.success ? 'success' : 'failed',
+              errorMessage: toolResult.error
+            });
+
+            toolResults.push({
+              tool_call_id: toolCall.id,
+              role: 'tool',
+              name: toolCall.function.name,
+              content: JSON.stringify(toolResult.result)
+            });
+          }
+
+          // Continuar conversa com resultados das tools
+          const continuationBody = {
+            model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userMessage },
+              choice.message,
+              ...toolResults
+            ],
+            temperature: agentConfig.temperature || 0.7,
+            max_tokens: agentConfig.max_tokens || 2000,
+            tools: agentTools
+          };
+
+          const continuationResponse = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(continuationBody)
+          });
+
+          if (continuationResponse.ok) {
+            const continuationData = await continuationResponse.json();
+            agentResponse = continuationData.choices?.[0]?.message?.content || '';
+            tokensUsed = (llmData.usage?.total_tokens || 0) + (continuationData.usage?.total_tokens || 0);
+          } else {
+            agentResponse = `Tools executed. Results: ${JSON.stringify(toolResults)}`;
+            tokensUsed = llmData.usage?.total_tokens || 0;
+          }
+        } else {
+          agentResponse = choice?.message?.content || '';
+          tokensUsed = llmData.usage?.total_tokens || 0;
+        }
       }
 
       if (!agentResponse) {
